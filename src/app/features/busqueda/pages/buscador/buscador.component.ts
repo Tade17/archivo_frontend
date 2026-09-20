@@ -1,30 +1,227 @@
-import {Component,inject,signal,OnInit} from '@angular/core';import {FormsModule} from '@angular/forms';import {RouterLink} from '@angular/router';import {DatePipe} from '@angular/common';import {ArchiveApi} from '../../../../core/services/archive-api.service';import {AuthService} from '../../../../core/services/auth.service';import {DialogService} from '../../../../core/services/dialog.service';import {Catalogs,Page,RecordFile} from '../../../../core/models/archive.model';import {PagerComponent} from '../../../../shared/components/pager.component';import {DocumentPreviewComponent} from '../../../../shared/components/document-preview.component';
+import { Component, inject, OnInit, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import { ArchiveApi } from '../../../../core/services/archive-api.service';
+import { AuthService } from '../../../../core/services/auth.service';
+import { DialogService } from '../../../../core/services/dialog.service';
+import { Catalogs, Page, RecordFile } from '../../../../core/models/archive.model';
+import { DocumentPreviewComponent } from '../../../../shared/components/document-preview.component';
+import { PagerComponent } from '../../../../shared/components/pager.component';
+
 interface SearchFilters {
- texto:string; anio:string; areaDestinoId:string; tipoId:string; disponibilidad:string;
- codigo:string; numeroTramite:string; asunto:string; cajaId:string; tags:string;
- foliosMin:number|null; foliosMax:number|null; desde:string; hasta:string;
- tecnico:string; digitalizadoDesde:string;
+  texto: string;
+  anio: string;
+  areaDestinoId: string;
+  tipoId: string;
 }
-@Component({selector:'app-buscador',imports:[FormsModule,RouterLink,DatePipe,PagerComponent,DocumentPreviewComponent],template:`
-<section class="relative bg-white overflow-hidden border-b border-[var(--line)] px-6 lg:px-16 py-8"><img src="/design/YKw7T.png" alt="" class="absolute inset-0 w-full h-full object-cover opacity-40 pointer-events-none"><div class="relative"><div class="flex justify-between items-center gap-3"><h1 class="font-light text-[38px] text-[var(--deep)] tracking-[-1.5px]">Explora <strong class="font-extrabold">el archivo</strong></h1>@if(auth.can('ARCHIVISTA')){<a class="btn secondary" routerLink="/expedientes/nuevo">+ Borrador nuevo</a>}</div><p class="text-xs text-[var(--muted)] mt-1">Encuentra, verifica y abre expedientes municipales desde un mismo lugar.</p>
-<form (ngSubmit)="search(0)" class="flex gap-2 max-w-[790px] mt-6"><input aria-label="Buscar en el archivo" name="texto" [(ngModel)]="filters.texto" placeholder="Licencia de construcción…" class="!border-[var(--brand)]"><button class="btn w-36" [disabled]="busy()">Buscar →</button></form>
-<div class="flex flex-wrap gap-3 mt-3 items-center max-w-[790px]"><select aria-label="Año" class="!w-24 !p-1 !text-[10px]" [(ngModel)]="filters.anio" (change)="search(0)"><option value="">Año</option>@for(y of years;track y){<option>{{y}}</option>}</select><select aria-label="Área de destino" class="!w-36 !p-1 !text-[10px]" [(ngModel)]="filters.areaDestinoId" (change)="search(0)"><option value="">Todas las áreas</option>@for(a of catalogs()?.areas;track a.id){<option [value]="a.id">{{a.nombre}}</option>}</select><select aria-label="Tipo documental" class="!w-32 !p-1 !text-[10px]" [(ngModel)]="filters.tipoId" (change)="search(0)"><option value="">Todos los tipos</option>@for(t of catalogs()?.tipos;track t.id){<option [value]="t.id">{{t.nombre}}</option>}</select><select aria-label="Disponibilidad" class="!w-28 !p-1 !text-[10px]" [(ngModel)]="filters.disponibilidad" (change)="search(0)"><option value="">Todo estado</option><option value="disponible">Disponible</option><option value="prestado">En préstamo</option></select><button class="text-button ml-auto" (click)="advanced.set(!advanced())">{{advanced()?'Ocultar filtros −':'Afinar búsqueda +'}}</button></div></div></section>
-@if(advanced()){<section class="workspace !pb-0"><form class="panel" (ngSubmit)="search(0)"><div class="section-title"><div><h2>Filtros avanzados</h2><p class="text-xs text-[var(--muted)] mt-2">Combina criterios para reducir los resultados con mayor precisión.</p></div><button type="button" class="text-button" (click)="advanced.set(false)">Ocultar</button></div><div class="grid md:grid-cols-3 gap-8">
-<div class="space-y-3"><p class="eyebrow">01 IDENTIFICACIÓN</p><label>Código de expediente<input name="codigo" [(ngModel)]="filters.codigo"></label><label>Número de trámite<input name="tramite" [(ngModel)]="filters.numeroTramite"></label><label>Asunto<input name="asunto" [(ngModel)]="filters.asunto"></label></div>
-<div class="space-y-3"><p class="eyebrow">02 CLASIFICACIÓN</p><label>Ubicación física<select name="caja" [(ngModel)]="filters.cajaId"><option value="">Todas las cajas</option>@for(c of catalogs()?.cajas;track c.id){<option [value]="c.id">{{c.nombre}}</option>}</select></label><label>Etiquetas libres<input name="tags" [(ngModel)]="filters.tags"></label><div class="grid grid-cols-2 gap-2"><label>Folios desde<input type="number" min="1" name="foliosMin" [(ngModel)]="filters.foliosMin"></label><label>Folios hasta<input type="number" min="1" name="foliosMax" [(ngModel)]="filters.foliosMax"></label></div></div>
-<div class="space-y-3"><p class="eyebrow">03 ARCHIVO Y FECHAS</p><div class="grid grid-cols-2 gap-2"><label>Creado desde<input type="date" name="desde" [(ngModel)]="filters.desde"></label><label>Creado hasta<input type="date" name="hasta" [(ngModel)]="filters.hasta"></label></div><label>Técnico responsable<input name="tecnico" [(ngModel)]="filters.tecnico"></label><label>Digitalizado desde<input type="date" name="digitalizadoDesde" [(ngModel)]="filters.digitalizadoDesde"></label></div></div>
-<div class="flex flex-wrap justify-end gap-4 mt-6 border-t border-[var(--line)] pt-5"><button type="button" class="text-button" (click)="save()">Guardar búsqueda</button><button type="button" class="text-button" (click)="restore()">Recuperar búsqueda</button><button type="button" class="text-button" (click)="clear()">Limpiar filtros</button><button class="btn">Aplicar filtros</button></div></form></section>}
-<div class="workspace grid lg:grid-cols-[minmax(240px,.85fr)_minmax(340px,1.65fr)_minmax(210px,.8fr)] gap-6 items-start">
-<section><div class="flex items-baseline justify-between mb-5"><h2 class="text-[var(--brand)]"><span class="font-light text-3xl">{{result()?.totalElementos??0}}</span> <span class="text-xs">expedientes</span></h2><small class="text-[var(--muted)]">Recientes ↓</small></div>
-@if(busy()){<p class="empty" aria-live="polite">Consultando archivo…</p>}
-@for(r of result()?.contenido;track r.id;let i=$index){<button class="block w-full text-left py-5 px-3 border-b border-[var(--line)] border-l-2" [class]="selected()?.id===r.id?'bg-white border-l-[var(--brand)]':'border-l-transparent'" (click)="selected.set(r)"><div class="flex justify-between gap-2 text-[9px] text-[var(--muted)]"><span>{{r.codigoUnico}}</span><span [class]="r.prestado?'text-amber-700':'text-emerald-700'">● {{r.prestado?'En préstamo':'Disponible'}}</span></div><h3 class="!text-xs text-[var(--deep)] mt-2 leading-5">{{r.asunto}}</h3><p class="text-[10px] text-[var(--muted)] mt-2">{{r.areaDestinoNombre}}</p></button>}
-@if(!busy()&&!result()?.contenido?.length){<div class="empty"><h2>Sin coincidencias</h2><p>Prueba otros términos o registra el primer expediente.</p></div>}
-<app-pager [page]="result()?.pagina??0" [size]="4" [total]="result()?.totalElementos??0" [busy]="busy()" (changed)="search($event)"/></section>
-<section class="min-w-0">@if(selected();as r){<div class="bg-white px-5 py-4 border-b border-[var(--line)]"><p class="eyebrow">{{r.codigoUnico}}</p><h2 class="mt-2 text-[var(--deep)]">{{r.asunto}}</h2></div><app-document-preview [id]="r.documentoId"/>} @else{<div class="empty bg-[var(--soft)] min-h-[500px] flex flex-col justify-center"><h2>El archivo, a tu alcance</h2><p>Selecciona un resultado para ver su documento.</p></div>}</section>
-<aside class="bg-white px-5 py-6">@if(selected();as r){<p class="eyebrow">FICHA RÁPIDA</p><dl class="data-list mt-4"><div><dt>Área de destino</dt><dd>{{r.areaDestinoNombre}}</dd></div><div><dt>Tipo documental</dt><dd>{{r.tipoNombre}}</dd></div><div><dt>Ubicación física</dt><dd>{{r.ubicacion}}</dd></div><div><dt>Archivo digital</dt><dd>{{r.totalDocumentos}} documento(s)</dd></div><div><dt>Fecha del documento</dt><dd>{{r.fechaDocumento|date:'dd/MM/yyyy'}}</dd></div></dl>@if(r.documentoId){<a class="btn w-full mt-7" [routerLink]="['/documentos',r.documentoId]">Abrir documento ↗</a>}<a class="btn secondary w-full mt-3" [routerLink]="['/expedientes',r.id]">Ficha completa →</a>}@else{<p class="text-xs text-[var(--muted)]">Los datos del expediente aparecerán aquí.</p>}</aside></div>`})
-export class BuscadorComponent implements OnInit {api=inject(ArchiveApi);auth=inject(AuthService);dialog=inject(DialogService);catalogs=signal<Catalogs|null>(null);result=signal<Page<RecordFile>|null>(null);selected=signal<RecordFile|null>(null);advanced=signal(false);busy=signal(false);filters:SearchFilters=this.emptyFilters();years=Array.from({length:40},(_,i)=>new Date().getFullYear()-i);private sequence=0;
-ngOnInit(){this.api.catalogs().subscribe({next:c=>this.catalogs.set(c),error:e=>this.dialog.error(e)});this.search(0);}
-search(page:number){if(this.filters.desde&&this.filters.hasta&&this.filters.desde>this.filters.hasta){this.dialog.info('Revisa las fechas','La fecha inicial debe ser anterior a la final.');return;}const seq=++this.sequence;this.busy.set(true);this.api.search(this.filters as unknown as Record<string,unknown>,page).subscribe({next:p=>{if(seq!==this.sequence)return;this.result.set(p);this.selected.set(p.contenido[0]??null);this.busy.set(false);},error:e=>{if(seq===this.sequence){this.busy.set(false);this.dialog.error(e);}}});}
-clear(){this.filters=this.emptyFilters();this.search(0);}save(){localStorage.setItem('archive-search-'+this.auth.usuario()?.usuarioId,JSON.stringify(this.filters));this.dialog.info('Búsqueda guardada','Puedes recuperarla en este navegador.');}restore(){try{const s=localStorage.getItem('archive-search-'+this.auth.usuario()?.usuarioId);if(s){this.filters={...this.emptyFilters(),...JSON.parse(s)};this.search(0);}else this.dialog.info('Sin búsqueda guardada','Guarda primero una combinación de filtros.');}catch{this.clear();}}
-private emptyFilters():SearchFilters{return {texto:'',anio:'',areaDestinoId:'',tipoId:'',disponibilidad:'',codigo:'',numeroTramite:'',asunto:'',cajaId:'',tags:'',foliosMin:null,foliosMax:null,desde:'',hasta:'',tecnico:'',digitalizadoDesde:''};}
+
+@Component({
+  selector: 'app-buscador',
+  imports: [FormsModule, RouterLink, DatePipe, PagerComponent, DocumentPreviewComponent],
+  template: ` <section
+      class="relative bg-white overflow-hidden border-b border-[var(--line)] px-6 lg:px-16 py-8"
+    >
+      <img
+        src="/design/YKw7T.png"
+        alt=""
+        class="absolute inset-0 w-full h-full object-cover opacity-40 pointer-events-none"
+      />
+      <div class="relative">
+        <div class="flex justify-between items-center gap-3">
+          <h1 class="font-light text-[38px] text-[var(--deep)] tracking-[-1.5px]">
+            Explora <strong class="font-extrabold">el archivo</strong>
+          </h1>
+          @if (auth.can('GESTOR_DOCUMENTAL')) {
+            <a class="btn secondary" routerLink="/expedientes/nuevo">+ Nuevo expediente</a>
+          }
+        </div>
+        <p class="text-xs text-[var(--muted)] mt-1">
+          Encuentra, verifica y abre expedientes municipales desde un mismo lugar.
+        </p>
+        <form (ngSubmit)="search(0)" class="flex gap-2 max-w-[790px] mt-6">
+          <input
+            aria-label="Buscar en el archivo"
+            name="texto"
+            [(ngModel)]="filters.texto"
+            placeholder="Licencia de construcción…"
+            class="!border-[var(--brand)]"
+          /><button class="btn w-36" [disabled]="busy()">Buscar →</button>
+        </form>
+        <div class="flex flex-wrap gap-3 mt-3 items-center max-w-[790px]">
+          <select
+            aria-label="Año"
+            class="!w-24 !p-1 !text-[10px]"
+            [(ngModel)]="filters.anio"
+            (change)="search(0)"
+          >
+            <option value="">Año</option>
+            @for (y of years; track y) {
+              <option>{{ y }}</option>
+            }
+          </select>
+          <select
+            aria-label="Área de destino"
+            class="!w-36 !p-1 !text-[10px]"
+            [(ngModel)]="filters.areaDestinoId"
+            (change)="search(0)"
+          >
+            <option value="">Todas las áreas</option>
+            @for (a of catalogs()?.areas; track a.id) {
+              <option [value]="a.id">{{ a.nombre }}</option>
+            }
+          </select>
+          <select
+            aria-label="Tipo documental"
+            class="!w-32 !p-1 !text-[10px]"
+            [(ngModel)]="filters.tipoId"
+            (change)="search(0)"
+          >
+            <option value="">Todos los tipos</option>
+            @for (t of catalogs()?.tipos; track t.id) {
+              <option [value]="t.id">{{ t.nombre }}</option>
+            }
+          </select>
+          <button type="button" class="text-button ml-auto" (click)="clear()">
+            Limpiar filtros
+          </button>
+        </div>
+      </div>
+    </section>
+    <div
+      class="workspace grid lg:grid-cols-[minmax(240px,.85fr)_minmax(340px,1.65fr)_minmax(210px,.8fr)] gap-6 items-start"
+    >
+      <section>
+        <div class="flex items-baseline justify-between mb-5">
+          <h2 class="text-[var(--brand)]">
+            <span class="font-light text-3xl">{{ result()?.totalElementos ?? 0 }}</span>
+            <span class="text-xs">expedientes</span>
+          </h2>
+          <small class="text-[var(--muted)]">Recientes ↓</small>
+        </div>
+        @if (busy()) {
+          <p class="empty" aria-live="polite">Consultando archivo…</p>
+        }
+        @for (r of result()?.contenido; track r.id) {
+          <button
+            class="block w-full text-left py-5 px-3 border-b border-[var(--line)] border-l-2"
+            [class]="
+              selected()?.id === r.id ? 'bg-white border-l-[var(--brand)]' : 'border-l-transparent'
+            "
+            (click)="selected.set(r)"
+          >
+            <div class="text-[9px] text-[var(--muted)]">
+              <span>{{ r.codigoUnico }}</span>
+            </div>
+            <h3 class="!text-xs text-[var(--deep)] mt-2 leading-5">{{ r.asunto }}</h3>
+            <p class="text-[10px] text-[var(--muted)] mt-2">{{ r.areaDestinoNombre }}</p>
+          </button>
+        }
+        @if (!busy() && !result()?.contenido?.length) {
+          <div class="empty">
+            <h2>Sin coincidencias</h2>
+            <p>Prueba otros términos o registra el primer expediente.</p>
+          </div>
+        }
+        <app-pager
+          [page]="result()?.pagina ?? 0"
+          [size]="4"
+          [total]="result()?.totalElementos ?? 0"
+          [busy]="busy()"
+          (changed)="search($event)"
+        />
+      </section>
+      <section class="min-w-0">
+        @if (selected(); as r) {
+          <div class="bg-white px-5 py-4 border-b border-[var(--line)]">
+            <p class="eyebrow">{{ r.codigoUnico }}</p>
+            <h2 class="mt-2 text-[var(--deep)]">{{ r.asunto }}</h2>
+          </div>
+          <app-document-preview [id]="r.documentoId" />
+        } @else {
+          <div class="empty bg-[var(--soft)] min-h-[500px] flex flex-col justify-center">
+            <h2>El archivo, a tu alcance</h2>
+            <p>Selecciona un resultado para ver su documento.</p>
+          </div>
+        }
+      </section>
+      <aside class="bg-white px-5 py-6">
+        @if (selected(); as r) {
+          <p class="eyebrow">FICHA RÁPIDA</p>
+          <dl class="data-list mt-4">
+            <div>
+              <dt>Área de destino</dt>
+              <dd>{{ r.areaDestinoNombre }}</dd>
+            </div>
+            <div>
+              <dt>Tipo documental</dt>
+              <dd>{{ r.tipoNombre }}</dd>
+            </div>
+            <div>
+              <dt>Archivo digital</dt>
+              <dd>{{ r.totalDocumentos }} documento(s)</dd>
+            </div>
+            <div>
+              <dt>Fecha del documento</dt>
+              <dd>{{ r.fechaDocumento | date: 'dd/MM/yyyy' }}</dd>
+            </div>
+          </dl>
+          @if (r.documentoId) {
+            <a class="btn w-full mt-7" [routerLink]="['/documentos', r.documentoId]"
+              >Abrir documento ↗</a
+            >
+          }
+          <a class="btn secondary w-full mt-3" [routerLink]="['/expedientes', r.id]"
+            >Ficha completa →</a
+          >
+        } @else {
+          <p class="text-xs text-[var(--muted)]">Los datos del expediente aparecerán aquí.</p>
+        }
+      </aside>
+    </div>`,
+})
+export class BuscadorComponent implements OnInit {
+  api = inject(ArchiveApi);
+  auth = inject(AuthService);
+  dialog = inject(DialogService);
+  catalogs = signal<Catalogs | null>(null);
+  result = signal<Page<RecordFile> | null>(null);
+  selected = signal<RecordFile | null>(null);
+  busy = signal(false);
+  filters: SearchFilters = {
+    texto: '',
+    anio: '',
+    areaDestinoId: '',
+    tipoId: '',
+  };
+  years = Array.from({ length: 40 }, (_, i) => new Date().getFullYear() - i);
+  private sequence = 0;
+  ngOnInit() {
+    this.api
+      .catalogs()
+      .subscribe({ next: (c) => this.catalogs.set(c), error: (e) => this.dialog.error(e) });
+    this.search(0);
+  }
+  search(page: number) {
+    const seq = ++this.sequence;
+    this.busy.set(true);
+    this.api.search(this.filters as unknown as Record<string, unknown>, page).subscribe({
+      next: (p) => {
+        if (seq !== this.sequence) return;
+        this.result.set(p);
+        this.selected.set(p.contenido[0] ?? null);
+        this.busy.set(false);
+      },
+      error: (e) => {
+        if (seq === this.sequence) {
+          this.busy.set(false);
+          this.dialog.error(e);
+        }
+      },
+    });
+  }
+  clear() {
+    this.filters = { texto: '', anio: '', areaDestinoId: '', tipoId: '' };
+    this.search(0);
+  }
 }

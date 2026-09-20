@@ -1,18 +1,261 @@
-import {Component,inject,signal,OnInit} from '@angular/core';import {FormsModule} from '@angular/forms';import {RouterLink,ActivatedRoute} from '@angular/router';import {HttpEventType} from '@angular/common/http';import {ArchiveApi} from '../../../../core/services/archive-api.service';import {AuthService} from '../../../../core/services/auth.service';import {DialogService} from '../../../../core/services/dialog.service';import {RecordFile} from '../../../../core/models/archive.model';import {RecordPickerComponent} from '../../../../shared/components/record-picker.component';import {FileSizePipe} from '../../../../shared/pipes/file-size.pipe';
-@Component({selector:'app-carga-documentos',imports:[FormsModule,RouterLink,RecordPickerComponent,FileSizePipe],template:`
-<div class="page-heading"><div><h1>Digitalización <strong>por lote</strong></h1><p>Carga y revisión manual de documentos para un expediente.</p></div>@if(record();as r){<a [routerLink]="['/expedientes',r.id]" class="text-button">{{r.codigoUnico}} →</a>}</div>
-<div class="workspace"><div class="panel mb-6"><p class="eyebrow mb-3">EXPEDIENTE DE DESTINO</p>@if(record();as r){<div class="flex justify-between gap-3"><div><strong>{{r.codigoUnico}}</strong><p class="text-xs mt-2">{{r.asunto}}</p></div><button class="text-button" [disabled]="busy()" (click)="record.set(null)">Cambiar</button></div>}@else{<app-record-picker (chosen)="record.set($event)"/>}</div>
-<div class="grid lg:grid-cols-[1fr_360px] gap-6"><section class="panel"><p class="eyebrow">01 CAPTURA</p><h2 class="mt-2">Añadir documentos</h2><p class="text-xs text-[var(--muted)] leading-6 mt-3">Selecciona archivos PDF, TIFF, JPG o PNG ya escaneados. Máximo 20 MB por archivo y 150 MB por lote.</p><div class="border-2 border-dashed border-[var(--line)] rounded-md p-9 mt-6 text-center"><label class="btn cursor-pointer">Seleccionar archivos<input class="sr-only" type="file" multiple accept=".pdf,.tiff,.tif,.jpg,.jpeg,.png" [disabled]="busy()" (change)="select($event)"></label><p class="text-[10px] text-[var(--muted)] mt-3">Los originales se conservarán en su formato de entrada.</p></div></section>
-<section class="panel"><p class="eyebrow">02 DATOS DE CAPTURA</p><h2 class="mt-2 mb-5">Perfil de digitalización</h2><div class="space-y-4"><label>Escáner utilizado · opcional<input [(ngModel)]="scanner" placeholder="Nombre del equipo"></label><label>Resolución declarada<input type="number" min="72" max="2400" [(ngModel)]="dpi"></label><p class="text-xs text-[var(--muted)] leading-6">Revisión manual. La resolución se registra como dato de captura; no se convierte el archivo ni se certifica PDF/A.</p></div></section></div>
-<section class="panel mt-6"><div class="section-title"><div><p class="eyebrow">03 COLA DEL LOTE</p><h2>{{files().length}} archivo(s)</h2></div><span class="badge neutral">Revisión manual</span></div><div class="overflow-x-auto"><table><thead><tr><th>ORDEN</th><th>ARCHIVO</th><th>TAMAÑO</th><th>REVISIÓN</th><th>ACCIONES</th></tr></thead><tbody>@for(row of files();track row.file;let i=$index){<tr><td>{{i+1}}</td><td>{{row.file.name}}</td><td>{{row.file.size|fileSize}}</td><td><label class="flex items-center gap-2"><input type="checkbox" [(ngModel)]="row.reviewed" [disabled]="busy()">Legible y completo</label></td><td><div class="flex gap-3"><button class="text-button" (click)="preview(row.file)">Vista previa</button><button class="text-button" (click)="move(i,-1)" [disabled]="busy()||i===0" aria-label="Mover arriba">↑</button><button class="text-button" (click)="remove(i)" [disabled]="busy()">Quitar</button></div></td></tr>}@empty{<tr><td colspan="5" class="empty">Añade los archivos del expediente para comenzar.</td></tr>}</tbody></table></div>
-@if(busy()){<progress class="w-full mt-5" max="100" [value]="progress()"></progress><p class="text-xs mt-2" aria-live="polite">Cargando lote: {{progress()}}%</p>}
-<div class="flex justify-between items-center mt-6 gap-4"><p class="text-xs text-[var(--muted)]">Confirma la legibilidad de cada archivo antes de guardar.</p><button class="btn" [disabled]="!ready()||busy()" (click)="upload()">Procesar lote →</button></div></section></div>`})
-export class CargaDocumentosComponent implements OnInit {api=inject(ArchiveApi);auth=inject(AuthService);dialog=inject(DialogService);route=inject(ActivatedRoute);record=signal<RecordFile|null>(null);files=signal<{file:File;reviewed:boolean}[]>([]);scanner='';dpi=300;busy=signal(false);progress=signal(0);
-ngOnInit(){const id=this.route.snapshot.queryParamMap.get('expedienteId');if(id)this.api.record(id).subscribe({next:r=>this.record.set(r),error:e=>this.dialog.error(e)});}
-select(event:Event){const input=event.target as HTMLInputElement;const rows=[...this.files()];const rejected:string[]=[];for(const file of Array.from(input.files??[])){if(!['application/pdf','image/tiff','image/jpeg','image/png'].includes(file.type)||!file.size||file.size>20*1024*1024){rejected.push(file.name);continue;}if(!rows.some(r=>r.file.name===file.name&&r.file.size===file.size))rows.push({file,reviewed:false});}if(rows.reduce((s,r)=>s+r.file.size,0)>150*1024*1024){this.dialog.info('Lote demasiado grande','Selecciona como máximo 150 MB por lote.');}else this.files.set(rows);input.value='';if(rejected.length)this.dialog.info('Archivos no admitidos','Revisa el formato y el límite de 20 MB: '+rejected.join(', '));}
-ready(){return !!this.record()&&this.files().length>0&&this.files().every(r=>r.reviewed)&&this.dpi>=72&&this.dpi<=2400;}
-remove(i:number){this.files.update(r=>r.filter((_,n)=>n!==i));}move(i:number,d:number){this.files.update(rows=>{const next=[...rows];[next[i],next[i+d]]=[next[i+d],next[i]];return next;});}
-preview(file:File){const url=URL.createObjectURL(file);window.open(url,'_blank','noopener');setTimeout(()=>URL.revokeObjectURL(url),60000);}
-async upload(){if(!this.ready()||this.busy())return;this.busy.set(true);if(!await this.dialog.ask('Guardar lote','Se guardarán '+this.files().length+' archivos en '+this.record()!.codigoUnico+'.')){this.busy.set(false);return;}const body=new FormData();body.append('expedienteId',this.record()!.id);body.append('tecnicoResponsableId',this.auth.usuario()!.usuarioId);body.append('resolucionDpi',String(this.dpi));if(this.scanner)body.append('escanerUtilizado',this.scanner);for(const r of this.files())body.append('archivos',r.file);this.api.upload(body).subscribe({next:e=>{if(e.type===HttpEventType.UploadProgress)this.progress.set(Math.round(e.loaded/(e.total??e.loaded)*100));if(e.type===HttpEventType.Response){this.busy.set(false);this.files.set([]);this.dialog.info('Lote guardado','Los archivos ya están disponibles para consulta. La extracción automática de OCR queda pendiente.');}},error:e=>{this.busy.set(false);this.dialog.error(e);}});}
+import { Component, inject, signal, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { RouterLink, ActivatedRoute } from '@angular/router';
+import { HttpEventType } from '@angular/common/http';
+import { ArchiveApi } from '../../../../core/services/archive-api.service';
+import { AuthService } from '../../../../core/services/auth.service';
+import { DialogService } from '../../../../core/services/dialog.service';
+import { RecordFile } from '../../../../core/models/archive.model';
+import { RecordPickerComponent } from '../../../../shared/components/record-picker.component';
+import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
+@Component({
+  selector: 'app-carga-documentos',
+  imports: [FormsModule, RouterLink, RecordPickerComponent, FileSizePipe],
+  template: ` <div class="page-heading">
+      <div>
+        <h1>Cargar varios <strong>documentos</strong></h1>
+        <p>Añade varios archivos a un expediente que ya existe.</p>
+      </div>
+      @if (record(); as r) {
+        <a [routerLink]="['/expedientes', r.id]" class="text-button">{{ r.codigoUnico }} →</a>
+      }
+    </div>
+    <div class="workspace">
+      <div class="panel mb-6">
+        <p class="eyebrow mb-3">EXPEDIENTE DE DESTINO</p>
+        @if (record(); as r) {
+          <div class="flex justify-between gap-3">
+            <div>
+              <strong>{{ r.codigoUnico }}</strong>
+              <p class="text-xs mt-2">{{ r.asunto }}</p>
+            </div>
+            <button class="text-button" [disabled]="busy()" (click)="record.set(null)">
+              Cambiar
+            </button>
+          </div>
+        } @else {
+          <app-record-picker (chosen)="record.set($event)" />
+        }
+      </div>
+      <div class="grid lg:grid-cols-[1fr_360px] gap-6">
+        <section class="panel">
+          <p class="eyebrow">01 CAPTURA</p>
+          <h2 class="mt-2">Añadir documentos</h2>
+          <p class="text-xs text-[var(--muted)] leading-6 mt-3">
+            Selecciona archivos PDF, TIFF, JPG o PNG ya escaneados. Máximo 20 MB por archivo y 150
+            MB por lote.
+          </p>
+          <div class="border-2 border-dashed border-[var(--line)] rounded-md p-9 mt-6 text-center">
+            <label class="btn cursor-pointer"
+              >Seleccionar archivos<input
+                class="sr-only"
+                type="file"
+                multiple
+                accept=".pdf,.tiff,.tif,.jpg,.jpeg,.png"
+                [disabled]="busy()"
+                (change)="select($event)"
+            /></label>
+            <p class="text-[10px] text-[var(--muted)] mt-3">
+              Los originales se conservarán en su formato de entrada.
+            </p>
+          </div>
+        </section>
+        <section class="panel">
+          <p class="eyebrow">02 DATOS DE CAPTURA</p>
+          <h2 class="mt-2 mb-5">Perfil de digitalización</h2>
+          <div class="space-y-4">
+            <label
+              >Escáner utilizado · opcional<input
+                [(ngModel)]="scanner"
+                placeholder="Nombre del equipo" /></label
+            ><label
+              >Resolución declarada<input type="number" min="72" max="2400" [(ngModel)]="dpi"
+            /></label>
+            <p class="text-xs text-[var(--muted)] leading-6">
+              Revisión manual. La resolución se registra como dato de captura; no se convierte el
+              archivo ni se certifica PDF/A.
+            </p>
+          </div>
+        </section>
+      </div>
+      <section class="panel mt-6">
+        <div class="section-title">
+          <div>
+            <p class="eyebrow">03 COLA DEL LOTE</p>
+            <h2>{{ files().length }} archivo(s)</h2>
+          </div>
+          <span class="badge neutral">Revisión manual</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table>
+            <thead>
+              <tr>
+                <th>ORDEN</th>
+                <th>ARCHIVO</th>
+                <th>TAMAÑO</th>
+                <th>REVISIÓN</th>
+                <th>ACCIONES</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of files(); track row.file; let i = $index) {
+                <tr>
+                  <td>{{ i + 1 }}</td>
+                  <td>{{ row.file.name }}</td>
+                  <td>{{ row.file.size | fileSize }}</td>
+                  <td>
+                    <label class="flex items-center gap-2"
+                      ><input
+                        type="checkbox"
+                        [(ngModel)]="row.reviewed"
+                        [disabled]="busy()"
+                      />Legible y completo</label
+                    >
+                  </td>
+                  <td>
+                    <div class="flex gap-3">
+                      <button class="text-button" (click)="preview(row.file)">Vista previa</button
+                      ><button
+                        class="text-button"
+                        (click)="move(i, -1)"
+                        [disabled]="busy() || i === 0"
+                        aria-label="Mover arriba"
+                      >
+                        ↑</button
+                      ><button class="text-button" (click)="remove(i)" [disabled]="busy()">
+                        Quitar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="empty">
+                    Añade los archivos del expediente para comenzar.
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (busy()) {
+          <progress class="w-full mt-5" max="100" [value]="progress()"></progress>
+          <p class="text-xs mt-2" aria-live="polite">Cargando lote: {{ progress() }}%</p>
+        }
+        <div class="flex justify-between items-center mt-6 gap-4">
+          <p class="text-xs text-[var(--muted)]">
+            Confirma la legibilidad de cada archivo antes de guardar.
+          </p>
+          <button class="btn" [disabled]="!ready() || busy()" (click)="upload()">
+            Cargar documentos →
+          </button>
+        </div>
+      </section>
+    </div>`,
+})
+export class CargaDocumentosComponent implements OnInit {
+  api = inject(ArchiveApi);
+  auth = inject(AuthService);
+  dialog = inject(DialogService);
+  route = inject(ActivatedRoute);
+  record = signal<RecordFile | null>(null);
+  files = signal<{ file: File; reviewed: boolean }[]>([]);
+  scanner = '';
+  dpi = 300;
+  busy = signal(false);
+  progress = signal(0);
+  ngOnInit() {
+    const id = this.route.snapshot.queryParamMap.get('expedienteId');
+    if (id)
+      this.api
+        .record(id)
+        .subscribe({ next: (r) => this.record.set(r), error: (e) => this.dialog.error(e) });
+  }
+  select(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const rows = [...this.files()];
+    const rejected: string[] = [];
+    for (const file of Array.from(input.files ?? [])) {
+      if (
+        !['application/pdf', 'image/tiff', 'image/jpeg', 'image/png'].includes(file.type) ||
+        !file.size ||
+        file.size > 20 * 1024 * 1024
+      ) {
+        rejected.push(file.name);
+        continue;
+      }
+      if (!rows.some((r) => r.file.name === file.name && r.file.size === file.size))
+        rows.push({ file, reviewed: false });
+    }
+    if (rows.reduce((s, r) => s + r.file.size, 0) > 150 * 1024 * 1024) {
+      this.dialog.info('Lote demasiado grande', 'Selecciona como máximo 150 MB por lote.');
+    } else this.files.set(rows);
+    input.value = '';
+    if (rejected.length)
+      this.dialog.info(
+        'Archivos no admitidos',
+        'Revisa el formato y el límite de 20 MB: ' + rejected.join(', '),
+      );
+  }
+  ready() {
+    return (
+      !!this.record() &&
+      this.files().length > 0 &&
+      this.files().every((r) => r.reviewed) &&
+      this.dpi >= 72 &&
+      this.dpi <= 2400
+    );
+  }
+  remove(i: number) {
+    this.files.update((r) => r.filter((_, n) => n !== i));
+  }
+  move(i: number, d: number) {
+    this.files.update((rows) => {
+      const next = [...rows];
+      [next[i], next[i + d]] = [next[i + d], next[i]];
+      return next;
+    });
+  }
+  preview(file: File) {
+    const url = URL.createObjectURL(file);
+    window.open(url, '_blank', 'noopener');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  async upload() {
+    if (!this.ready() || this.busy()) return;
+    this.busy.set(true);
+    if (
+      !(await this.dialog.ask(
+        'Guardar lote',
+        'Se guardarán ' + this.files().length + ' archivos en ' + this.record()!.codigoUnico + '.',
+      ))
+    ) {
+      this.busy.set(false);
+      return;
+    }
+    const body = new FormData();
+    body.append('expedienteId', this.record()!.id);
+    body.append('tecnicoResponsableId', this.auth.usuario()!.usuarioId);
+    body.append('resolucionDpi', String(this.dpi));
+    if (this.scanner) body.append('escanerUtilizado', this.scanner);
+    for (const r of this.files()) body.append('archivos', r.file);
+    this.api.upload(body).subscribe({
+      next: (e) => {
+        if (e.type === HttpEventType.UploadProgress)
+          this.progress.set(Math.round((e.loaded / (e.total ?? e.loaded)) * 100));
+        if (e.type === HttpEventType.Response) {
+          this.busy.set(false);
+          this.files.set([]);
+          this.dialog.info(
+            'Lote guardado',
+            'Los archivos ya están disponibles para consulta. La extracción automática de OCR queda pendiente.',
+          );
+        }
+      },
+      error: (e) => {
+        this.busy.set(false);
+        this.dialog.error(e);
+      },
+    });
+  }
 }
-

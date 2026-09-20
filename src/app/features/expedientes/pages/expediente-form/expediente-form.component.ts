@@ -1,20 +1,270 @@
-import {Component,inject,signal,OnInit} from '@angular/core';import {FormsModule} from '@angular/forms';import {Router,RouterLink,ActivatedRoute} from '@angular/router';import {ArchiveApi} from '../../../../core/services/archive-api.service';import {AuthService} from '../../../../core/services/auth.service';import {DialogService} from '../../../../core/services/dialog.service';import {Catalogs} from '../../../../core/models/archive.model';import {LocationPickerComponent} from '../../../../shared/components/location-picker.component';
-@Component({selector:'app-expediente-form',imports:[FormsModule,RouterLink,LocationPickerComponent],template:`
-<div class="page-heading"><div><h1>{{id?'Editar':'Recibir'}} <strong>{{id?'expediente':'y catalogar'}}</strong></h1><p>Registra la existencia física antes de asignar ubicación y generar su etiqueta.</p></div><a routerLink="/buscar" class="btn secondary">Volver a Explorar</a></div>
-<div class="workspace grid lg:grid-cols-[240px_1fr] gap-8">
-<aside><p class="eyebrow mb-6">RUTA DEL REGISTRO</p><div class="space-y-7 text-[var(--deep)]"><div><strong>01 Prevalidar ingreso</strong><p class="mt-2 text-xs text-[var(--muted)]">Buscar posibles duplicados</p></div><div><strong>02 Clasificar expediente</strong><p class="mt-2 text-xs text-[var(--muted)]">Área, tipo y asunto</p></div><div><strong>03 Asignar ubicación</strong><p class="mt-2 text-xs text-[var(--muted)]">Archivo, estante, nivel y caja</p></div></div><div class="rule"></div><p class="text-xs leading-6 text-[var(--muted)]">Comprueba el número de trámite y año antes de continuar. El código único se genera al registrar.</p>@if(!id){<button class="text-button mt-5" (click)="restore()">Recuperar borrador local</button>}@if(auth.hasRole('ADMIN')){<a class="text-button mt-5 block" routerLink="/catalogos">Configurar áreas y ubicación →</a>}</aside>
-<form #form="ngForm" class="panel" (ngSubmit)="submit()"><div class="section-title"><div><p class="eyebrow">NUEVO EXPEDIENTE FÍSICO</p><h2>Ficha de recepción</h2></div><span class="badge neutral">{{id?'Edición':'Código al registrar'}}</span></div>
-<p class="eyebrow mb-4">01 PREVALIDACIÓN</p><div class="grid sm:grid-cols-[110px_1fr_auto] gap-4 items-end"><label>Año de ingreso<input type="number" name="anioIngreso" required min="1900" max="2200" [(ngModel)]="data.anioIngreso" (ngModelChange)="checked.set('')"></label><label>Número de trámite<input name="numeroTramite" required maxlength="50" [(ngModel)]="data.numeroTramite" (ngModelChange)="checked.set('')"></label>@if(!id){<button type="button" class="btn secondary" [disabled]="!data.numeroTramite||checking()" (click)="check()">Comprobar coincidencias</button>}</div>
-@if(checked()){<p class="badge mt-4">✓ Sin coincidencias para este trámite y año</p>}
-<div class="rule"></div><p class="eyebrow mb-5">02 CLASIFICACIÓN</p><div class="field-grid"><label>Número de documento<input name="numeroDocumento" required maxlength="50" [(ngModel)]="data.numeroDocumento"></label><label>Remitente<input name="remitente" required maxlength="255" [(ngModel)]="data.remitente"></label><label>Área de destino<select name="areaDestinoId" required [(ngModel)]="data.areaDestinoId"><option value="">Seleccionar área</option>@for(a of catalogs()?.areas;track a.id){<option [value]="a.id">{{a.nombre}}</option>}</select></label><label>Fecha del documento<input type="date" name="fechaDocumento" required [(ngModel)]="data.fechaDocumento"></label><label>Tipo documental<select name="tipoId" required [(ngModel)]="data.tipoId"><option value="">Seleccionar tipo</option>@for(t of catalogs()?.tipos;track t.id){<option [value]="t.id">{{t.nombre}}</option>}</select></label><label>Asunto<input name="asunto" required maxlength="500" [(ngModel)]="data.asunto"></label></div><label class="mt-5">Glosa · resumen del contenido<textarea name="glosa" rows="4" [(ngModel)]="data.glosa"></textarea></label>
-<div class="rule"></div><p class="eyebrow mb-5">03 UBICACIÓN FÍSICA</p><app-location-picker [catalogs]="catalogs()" [(cajaId)]="data.cajaId"/><label class="max-w-40 mt-5">Número de folios<input name="numeroFolios" type="number" min="1" required [(ngModel)]="data.numeroFolios"></label>
-<div class="rule"></div><div class="flex flex-wrap justify-end gap-3">@if(!id){<button type="button" class="btn secondary" (click)="draft()">Guardar borrador</button>}<button class="btn" [disabled]="!form.valid||!data.cajaId||(!id&&!checked())||busy()">{{busy()?'Guardando…':id?'Guardar cambios':'Registrar y generar QR'}}</button></div></form></div>`})
+import { Component, inject, signal, OnInit } from '@angular/core';
+import { HttpEventType } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
+import { ArchiveApi } from '../../../../core/services/archive-api.service';
+import { AuthService } from '../../../../core/services/auth.service';
+import { DialogService } from '../../../../core/services/dialog.service';
+import { Catalogs } from '../../../../core/models/archive.model';
+import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
+@Component({
+  selector: 'app-expediente-form',
+  imports: [FormsModule, RouterLink, FileSizePipe],
+  template: ` <div class="page-heading">
+      <div>
+        <h1>{{ id ? 'Editar' : 'Nuevo' }} <strong>expediente</strong></h1>
+        <p>
+          {{
+            id
+              ? 'Actualiza la información del expediente.'
+              : 'Completa los datos y adjunta sus documentos en un solo paso.'
+          }}
+        </p>
+      </div>
+      <a routerLink="/buscar" class="btn secondary">Volver a Explorar</a>
+    </div>
+    <div class="workspace grid lg:grid-cols-[240px_1fr] gap-8">
+      <aside>
+        <h2 class="mb-4">Registro automático</h2>
+        <div class="space-y-7 text-[var(--deep)]">
+          <div>
+            <strong>El sistema asignará el número</strong>
+            <p class="mt-2 text-xs text-[var(--muted)]">
+              No necesitas buscar ni adivinar el siguiente correlativo.
+            </p>
+          </div>
+        </div>
+        <div class="rule"></div>
+        <p class="text-xs leading-6 text-[var(--muted)]">
+          Al guardar se generarán automáticamente el número de registro y el código del expediente.
+        </p>
+        @if (auth.hasRole('ADMIN')) {
+          <a class="text-button mt-5 block" routerLink="/catalogos">Configurar áreas y tipos →</a>
+        }
+      </aside>
+      <form #form="ngForm" class="panel" (ngSubmit)="submit()">
+        <div class="section-title">
+          <div>
+            <h2>{{ id ? 'Editar información' : 'Datos del documento' }}</h2>
+          </div>
+          <span class="badge neutral">{{ id ? 'Edición' : 'Número automático' }}</span>
+        </div>
+        <div class="field-grid">
+          <label
+            >Número de documento<input
+              name="numeroDocumento"
+              required
+              maxlength="50"
+              [(ngModel)]="data.numeroDocumento" /></label
+          ><label
+            >Remitente<input
+              name="remitente"
+              required
+              maxlength="255"
+              [(ngModel)]="data.remitente" /></label
+          ><label
+            >Área de destino<select name="areaDestinoId" required [(ngModel)]="data.areaDestinoId">
+              <option value="">Seleccionar área</option>
+              @for (a of catalogs()?.areas; track a.id) {
+                <option [value]="a.id">{{ a.nombre }}</option>
+              }
+            </select></label
+          ><label
+            >Fecha del documento<input
+              type="date"
+              name="fechaDocumento"
+              required
+              [(ngModel)]="data.fechaDocumento" /></label
+          ><label
+            >Tipo documental<select name="tipoId" required [(ngModel)]="data.tipoId">
+              <option value="">Seleccionar tipo</option>
+              @for (t of catalogs()?.tipos; track t.id) {
+                <option [value]="t.id">{{ t.nombre }}</option>
+              }
+            </select></label
+          ><label
+            >Asunto<input name="asunto" required maxlength="500" [(ngModel)]="data.asunto"
+          /></label>
+        </div>
+        <label class="mt-5"
+          >Glosa · resumen del contenido<textarea
+            name="glosa"
+            rows="4"
+            [(ngModel)]="data.glosa"
+          ></textarea>
+        </label>
+        @if (!id) {
+          <div class="rule"></div>
+          <section aria-labelledby="documentos-iniciales">
+            <h3 id="documentos-iniciales">Documento digital</h3>
+            <p class="text-xs text-[var(--muted)] leading-6 mt-2">
+              Puedes adjuntar uno o varios archivos ahora. También podrás hacerlo después desde la
+              ficha del expediente.
+            </p>
+            <label class="btn secondary cursor-pointer mt-4">
+              Seleccionar archivos
+              <input
+                class="sr-only"
+                type="file"
+                multiple
+                accept=".pdf,.tiff,.tif,.jpg,.jpeg,.png"
+                [disabled]="busy()"
+                (change)="selectFiles($event)"
+              />
+            </label>
+            <p class="text-[10px] text-[var(--muted)] mt-2">
+              PDF, TIFF, JPG o PNG. Máximo 20 MB por archivo y 150 MB en total.
+            </p>
+            @if (files().length) {
+              <ul class="mt-4 border-t border-[var(--line)]" aria-label="Archivos seleccionados">
+                @for (file of files(); track file.name + file.size) {
+                  <li
+                    class="flex items-center justify-between gap-4 py-3 border-b border-[var(--line)]"
+                  >
+                    <span class="min-w-0 text-xs break-all">{{ file.name }}</span>
+                    <span class="flex items-center gap-4 shrink-0">
+                      <span class="text-[10px] text-[var(--muted)]">{{
+                        file.size | fileSize
+                      }}</span>
+                      <button
+                        type="button"
+                        class="text-button"
+                        [disabled]="busy()"
+                        (click)="removeFile(file)"
+                      >
+                        Quitar
+                      </button>
+                    </span>
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        }
+        <div class="rule"></div>
+        <div class="flex flex-wrap justify-end gap-3">
+          <button class="btn" [disabled]="!form.valid || busy()">
+            {{ busyLabel() || (id ? 'Guardar cambios' : 'Crear expediente') }}
+          </button>
+        </div>
+      </form>
+    </div>`,
+})
 export class ExpedienteFormComponent implements OnInit {
-api=inject(ArchiveApi);auth=inject(AuthService);dialog=inject(DialogService);router=inject(Router);route=inject(ActivatedRoute);catalogs=signal<Catalogs|null>(null);id=this.route.snapshot.paramMap.get('id');busy=signal(false);checking=signal(false);checked=signal('');
-data={numeroTramite:'',anioIngreso:new Date().getFullYear(),numeroDocumento:'',remitente:'',areaDestinoId:'',tipoId:'',fechaDocumento:new Date().toLocaleDateString('en-CA'),asunto:'',glosa:'',cajaId:'',numeroFolios:1};
-ngOnInit(){this.api.catalogs().subscribe({next:c=>this.catalogs.set(c),error:e=>this.dialog.error(e)});if(this.id)this.api.record(this.id).subscribe({next:r=>this.data={...this.data,...r,fechaDocumento:r.fechaDocumento.slice(0,10)},error:e=>this.dialog.error(e)});}
-check(){this.checking.set(true);const key=this.data.numeroTramite+'|'+this.data.anioIngreso;this.api.duplicates(this.data.numeroTramite,this.data.anioIngreso).subscribe({next:r=>{this.checking.set(false);if(key!==this.data.numeroTramite+'|'+this.data.anioIngreso)return;this.checked.set(r.existe?'':key);this.dialog.info(r.existe?'Expediente existente':'Sin coincidencias',r.existe?'Ya hay un expediente con ese trámite y año. Revisa el archivo antes de registrarlo.':'Puedes continuar con la clasificación.');},error:e=>{this.checking.set(false);this.dialog.error(e);}});}
-async submit(){if(this.busy())return;this.busy.set(true);if(!await this.dialog.ask(this.id?'Guardar cambios':'Registrar expediente','Confirma que los datos y la ubicación física son correctos.')){this.busy.set(false);return;}const request=this.id?this.api.edit(this.id,this.data):this.api.receive(this.data);request.subscribe({next:r=>{this.busy.set(false);if(!this.id)localStorage.removeItem(this.key());void this.router.navigate(['/expedientes',this.id??(r as {id:string}).id]);},error:e=>{this.busy.set(false);this.dialog.error(e);}});}
-key(){return 'archive-draft-'+this.auth.usuario()?.usuarioId;}draft(){localStorage.setItem(this.key(),JSON.stringify(this.data));this.dialog.info('Borrador guardado','El borrador queda en este navegador. Todavía no se ha registrado el expediente.');}restore(){try{const d=localStorage.getItem(this.key());if(d){this.data={...this.data,...JSON.parse(d)};this.checked.set('');}else this.dialog.info('Sin borrador','No hay un borrador guardado en este navegador.');}catch{this.dialog.info('Borrador no disponible','No fue posible recuperar el borrador.');}}
+  api = inject(ArchiveApi);
+  auth = inject(AuthService);
+  dialog = inject(DialogService);
+  router = inject(Router);
+  route = inject(ActivatedRoute);
+  catalogs = signal<Catalogs | null>(null);
+  id = this.route.snapshot.paramMap.get('id');
+  busy = signal(false);
+  busyLabel = signal('');
+  files = signal<File[]>([]);
+  data = {
+    numeroDocumento: '',
+    remitente: '',
+    areaDestinoId: '',
+    tipoId: '',
+    fechaDocumento: new Date().toLocaleDateString('en-CA'),
+    asunto: '',
+    glosa: '',
+  };
+  ngOnInit() {
+    this.api
+      .catalogs()
+      .subscribe({ next: (c) => this.catalogs.set(c), error: (e) => this.dialog.error(e) });
+    if (this.id)
+      this.api.record(this.id).subscribe({
+        next: (r) =>
+          (this.data = { ...this.data, ...r, fechaDocumento: r.fechaDocumento.slice(0, 10) }),
+        error: (e) => this.dialog.error(e),
+      });
+  }
+  selectFiles(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const next = [...this.files()];
+    const rejected: string[] = [];
+    const allowed = ['application/pdf', 'image/tiff', 'image/jpeg', 'image/png'];
+    for (const file of Array.from(input.files ?? [])) {
+      if (!allowed.includes(file.type) || !file.size || file.size > 20 * 1024 * 1024) {
+        rejected.push(file.name);
+        continue;
+      }
+      if (!next.some((item) => item.name === file.name && item.size === file.size)) next.push(file);
+    }
+    if (next.reduce((total, file) => total + file.size, 0) > 150 * 1024 * 1024) {
+      this.dialog.info('Demasiados archivos', 'Selecciona como máximo 150 MB en total.');
+    } else {
+      this.files.set(next);
+    }
+    input.value = '';
+    if (rejected.length) {
+      this.dialog.info(
+        'Algunos archivos no se añadieron',
+        'Revisa el formato y el límite de 20 MB: ' + rejected.join(', '),
+      );
+    }
+  }
+  removeFile(file: File) {
+    this.files.update((files) => files.filter((item) => item !== file));
+  }
+  async submit() {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.busyLabel.set(this.id ? 'Guardando cambios…' : 'Creando expediente…');
+    if (
+      !(await this.dialog.ask(
+        this.id ? 'Guardar cambios' : 'Registrar expediente',
+        'Confirma que los datos del expediente digital son correctos.',
+      ))
+    ) {
+      this.busy.set(false);
+      this.busyLabel.set('');
+      return;
+    }
+    const request = this.id ? this.api.edit(this.id, this.data) : this.api.receive(this.data);
+    request.subscribe({
+      next: (r) => {
+        const recordId = this.id ?? (r as { id: string }).id;
+        if (!this.id && this.files().length) {
+          this.uploadInitialFiles(recordId);
+          return;
+        }
+        this.finish(recordId);
+      },
+      error: (e) => {
+        this.busy.set(false);
+        this.busyLabel.set('');
+        this.dialog.error(e);
+      },
+    });
+  }
+  private uploadInitialFiles(recordId: string) {
+    this.busyLabel.set('Cargando documentos…');
+    const body = new FormData();
+    body.append('expedienteId', recordId);
+    body.append('tecnicoResponsableId', this.auth.usuario()!.usuarioId);
+    body.append('resolucionDpi', '300');
+    for (const file of this.files()) body.append('archivos', file);
+    this.api.upload(body).subscribe({
+      next: (event) => {
+        if (event.type === HttpEventType.Response) this.finish(recordId);
+      },
+      error: () => {
+        this.busy.set(false);
+        this.busyLabel.set('');
+        this.dialog.info(
+          'Expediente creado sin documentos',
+          'La ficha se guardó correctamente, pero los archivos no pudieron cargarse. Puedes intentarlo nuevamente desde la ficha del expediente.',
+        );
+        void this.router.navigate(['/expedientes', recordId]);
+      },
+    });
+  }
+  private finish(recordId: string) {
+    this.busy.set(false);
+    this.busyLabel.set('');
+    void this.router.navigate(['/expedientes', recordId]);
+  }
 }
-

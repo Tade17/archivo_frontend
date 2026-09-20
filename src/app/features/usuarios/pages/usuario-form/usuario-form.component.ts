@@ -1,9 +1,162 @@
-import {Component,inject,signal,OnInit} from '@angular/core';import {FormsModule} from '@angular/forms';import {Router,RouterLink,ActivatedRoute} from '@angular/router';import {HttpClient} from '@angular/common/http';import {ArchiveApi} from '../../../../core/services/archive-api.service';import {DialogService} from '../../../../core/services/dialog.service';import {Catalogs,User} from '../../../../core/models/archive.model';
-@Component({selector:'app-usuario-form',imports:[FormsModule,RouterLink],template:`
-<div class="page-heading"><div><h1>{{id?'Editar usuario':'Crear usuario'}} <strong>y asignar acceso</strong></h1><p>Define identidad, rol y permisos efectivos.</p></div></div><div class="workspace grid lg:grid-cols-[300px_1fr] gap-6"><aside class="panel self-start"><p class="eyebrow">ROLES DEL SISTEMA</p><div class="space-y-6 mt-6">@for(role of roles;track role.name){<div><strong>{{role.label}}</strong><p class="text-xs text-[var(--muted)] mt-2 leading-6">{{role.description}}</p></div>}</div></aside>
-<form #f="ngForm" class="panel" (ngSubmit)="save()"><h2>Identidad, rol y permisos</h2><div class="rule"></div><p class="eyebrow mb-5">01 IDENTIDAD Y CUENTA</p><div class="field-grid"><label>Nombre completo<input name="nombre" required maxlength="150" [(ngModel)]="nombre"></label><label>Correo institucional<input name="correo" type="email" email required maxlength="150" [(ngModel)]="correo"></label><label>{{id?'Nueva contraseña · opcional':'Contraseña inicial'}}<input name="password" type="password" autocomplete="new-password" [required]="!id" minlength="8" [(ngModel)]="password"></label><label>Estado<select name="activo" [(ngModel)]="activo"><option [ngValue]="true">Activa</option><option [ngValue]="false">Suspendida</option></select></label></div><div class="rule"></div><p class="eyebrow mb-5">02 ROL</p><label>Perfil de acceso<select name="rolId" required [(ngModel)]="rolId"><option value="">Seleccionar rol</option>@for(r of catalogs()?.roles;track r.id){<option [value]="r.id">{{r.nombre}}</option>}</select></label><p class="mt-5 text-xs leading-6 text-[var(--muted)]">La cuenta usa contraseña inicial. La activación por correo no está habilitada en esta versión.</p><div class="flex justify-end gap-3 mt-8"><a class="btn secondary" routerLink="/usuarios">Cancelar</a><button class="btn" [disabled]="!f.valid||busy()">{{id?'Guardar cambios':'Crear usuario'}}</button></div></form></div>`})
-export class UsuarioFormComponent implements OnInit {api=inject(ArchiveApi);http=inject(HttpClient);dialog=inject(DialogService);router=inject(Router);route=inject(ActivatedRoute);id=this.route.snapshot.queryParamMap.get('editar');catalogs=signal<Catalogs|null>(null);busy=signal(false);nombre='';correo='';password='';rolId='';activo=true;roles=[{name:'ADMIN',label:'Administrador',description:'Configuración y control total.'},{name:'ARCHIVISTA',label:'Archivista',description:'Catalogación, préstamos y consulta de auditoría.'},{name:'DIGITALIZACION',label:'Digitalización',description:'Carga, revisión manual y transcripción.'},{name:'CONSULTA',label:'Consulta',description:'Búsqueda y visualización del archivo.'}];
-ngOnInit(){this.api.catalogs().subscribe({next:c=>{this.catalogs.set(c);if(this.id)this.http.get<User>(this.api.base+'/usuarios/'+this.id).subscribe({next:u=>{this.nombre=u.nombre;this.correo=u.correo;this.activo=u.activo;this.rolId=c.roles.find(r=>r.nombre===u.rolNombre)?.id??'';},error:e=>this.dialog.error(e)});},error:e=>this.dialog.error(e)});}
-async save(){if(this.busy())return;this.busy.set(true);if(!await this.dialog.ask(this.id?'Guardar usuario':'Crear usuario','Confirma el correo y el perfil de acceso asignado.')){this.busy.set(false);return;}this.api.saveUser(this.id,{nombre:this.nombre,correo:this.correo,password:this.password,rolId:this.rolId,activo:this.activo}).subscribe({next:()=>{this.busy.set(false);void this.router.navigate(['/usuarios']);},error:e=>{this.busy.set(false);this.dialog.error(e);}});}
+import { Component, inject, signal, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
+import { ArchiveApi } from '../../../../core/services/archive-api.service';
+import { DialogService } from '../../../../core/services/dialog.service';
+import { Catalogs, User } from '../../../../core/models/archive.model';
+@Component({
+  selector: 'app-usuario-form',
+  imports: [FormsModule, RouterLink],
+  template: ` <div class="page-heading">
+      <div>
+        <h1>{{ id ? 'Editar usuario' : 'Crear usuario' }} <strong>y asignar acceso</strong></h1>
+        <p>Define identidad, rol y permisos efectivos.</p>
+      </div>
+    </div>
+    <div class="workspace grid lg:grid-cols-[300px_1fr] gap-6">
+      <aside class="panel self-start">
+        <p class="eyebrow">ROLES DEL SISTEMA</p>
+        <div class="space-y-6 mt-6">
+          @for (role of roles; track role.name) {
+            <div>
+              <strong>{{ role.label }}</strong>
+              <p class="text-xs text-[var(--muted)] mt-2 leading-6">{{ role.description }}</p>
+            </div>
+          }
+        </div>
+      </aside>
+      <form #f="ngForm" class="panel" (ngSubmit)="save()">
+        <h2>Identidad, rol y permisos</h2>
+        <div class="rule"></div>
+        <p class="eyebrow mb-5">01 IDENTIDAD Y CUENTA</p>
+        <div class="field-grid">
+          <label
+            >Nombre completo<input
+              name="nombre"
+              required
+              maxlength="150"
+              [(ngModel)]="nombre" /></label
+          ><label
+            >Correo institucional<input
+              name="correo"
+              type="email"
+              email
+              required
+              maxlength="150"
+              [(ngModel)]="correo" /></label
+          ><label
+            >{{ id ? 'Nueva contraseña · opcional' : 'Contraseña inicial'
+            }}<input
+              name="password"
+              type="password"
+              autocomplete="new-password"
+              [required]="!id"
+              minlength="8"
+              [(ngModel)]="password" /></label
+          ><label
+            >Estado<select name="activo" [(ngModel)]="activo">
+              <option [ngValue]="true">Activa</option>
+              <option [ngValue]="false">Suspendida</option>
+            </select></label
+          >
+        </div>
+        <div class="rule"></div>
+        <p class="eyebrow mb-5">02 ROL</p>
+        <label
+          >Perfil de acceso<select name="rolId" required [(ngModel)]="rolId">
+            <option value="">Seleccionar rol</option>
+            @for (r of catalogs()?.roles; track r.id) {
+              <option [value]="r.id">{{ roleLabel(r.nombre) }}</option>
+            }
+          </select></label
+        >
+        <p class="mt-5 text-xs leading-6 text-[var(--muted)]">
+          La cuenta usa contraseña inicial. La activación por correo no está habilitada en esta
+          versión.
+        </p>
+        <div class="flex justify-end gap-3 mt-8">
+          <a class="btn secondary" routerLink="/usuarios">Cancelar</a
+          ><button class="btn" [disabled]="!f.valid || busy()">
+            {{ id ? 'Guardar cambios' : 'Crear usuario' }}
+          </button>
+        </div>
+      </form>
+    </div>`,
+})
+export class UsuarioFormComponent implements OnInit {
+  api = inject(ArchiveApi);
+  http = inject(HttpClient);
+  dialog = inject(DialogService);
+  router = inject(Router);
+  route = inject(ActivatedRoute);
+  id = this.route.snapshot.queryParamMap.get('editar');
+  catalogs = signal<Catalogs | null>(null);
+  busy = signal(false);
+  nombre = '';
+  correo = '';
+  password = '';
+  rolId = '';
+  activo = true;
+  roles = [
+    { name: 'ADMIN', label: 'Administrador', description: 'Configura usuarios, catálogos y todo el sistema.' },
+    {
+      name: 'GESTOR_DOCUMENTAL',
+      label: 'Gestor de documentos',
+      description: 'Registra expedientes, carga archivos y completa sus datos.',
+    },
+    { name: 'LECTOR', label: 'Solo lectura', description: 'Busca, visualiza y descarga documentos sin modificarlos.' },
+  ];
+  roleLabel(name: string) {
+    return this.roles.find((role) => role.name === name)?.label ?? name;
+  }
+  ngOnInit() {
+    this.api.catalogs().subscribe({
+      next: (c) => {
+        this.catalogs.set(c);
+        if (this.id)
+          this.http.get<User>(this.api.base + '/usuarios/' + this.id).subscribe({
+            next: (u) => {
+              this.nombre = u.nombre;
+              this.correo = u.correo;
+              this.activo = u.activo;
+              this.rolId = c.roles.find((r) => r.nombre === u.rolNombre)?.id ?? '';
+            },
+            error: (e) => this.dialog.error(e),
+          });
+      },
+      error: (e) => this.dialog.error(e),
+    });
+  }
+  async save() {
+    if (this.busy()) return;
+    this.busy.set(true);
+    if (
+      !(await this.dialog.ask(
+        this.id ? 'Guardar usuario' : 'Crear usuario',
+        'Confirma el correo y el perfil de acceso asignado.',
+      ))
+    ) {
+      this.busy.set(false);
+      return;
+    }
+    this.api
+      .saveUser(this.id, {
+        nombre: this.nombre,
+        correo: this.correo,
+        password: this.password,
+        rolId: this.rolId,
+        activo: this.activo,
+      })
+      .subscribe({
+        next: () => {
+          this.busy.set(false);
+          void this.router.navigate(['/usuarios']);
+        },
+        error: (e) => {
+          this.busy.set(false);
+          this.dialog.error(e);
+        },
+      });
+  }
 }
-

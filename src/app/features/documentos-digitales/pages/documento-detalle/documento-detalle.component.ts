@@ -1,11 +1,132 @@
-import {Component,inject,signal,OnInit} from '@angular/core';import {FormsModule} from '@angular/forms';import {ActivatedRoute,RouterLink} from '@angular/router';import {ArchiveApi} from '../../../../core/services/archive-api.service';import {AuthService} from '../../../../core/services/auth.service';import {DialogService} from '../../../../core/services/dialog.service';import {DigitalFile,RecordFile} from '../../../../core/models/archive.model';import {DocumentPreviewComponent} from '../../../../shared/components/document-preview.component';
-@Component({selector:'app-documento-detalle',imports:[FormsModule,RouterLink,DocumentPreviewComponent],template:`
-<div class="page-heading"><div><h1>Documento digital <strong>y OCR</strong></h1><p>Consulta el archivo, localiza texto y descarga con trazabilidad.</p></div>@if(doc();as d){<button class="btn secondary" (click)="download()">↓ Descargar copia</button>}</div>
-@if(doc();as d){<div class="workspace grid lg:grid-cols-[220px_minmax(300px,1fr)_280px] gap-6"><aside class="panel"><p class="eyebrow">CONTENIDO DEL EXPEDIENTE</p><h3 class="mt-5 break-words">{{d.nombreArchivo}}</h3><dl class="data-list mt-4"><div><dt>Tipo documental</dt><dd>{{record()?.tipoNombre}}</dd></div><div><dt>Área de destino</dt><dd>{{record()?.areaDestinoNombre}}</dd></div><div><dt>Formato de archivo</dt><dd>{{d.tipoMime}}</dd></div><div><dt>Hash SHA-256 registrado</dt><dd class="!text-[9px]">{{d.hashSha256}}</dd></div></dl><a class="text-button block mt-6" [routerLink]="['/expedientes',d.expedienteId]">← Ficha completa</a></aside>
-<section class="min-w-0"><app-document-preview [id]="d.id" [full]="true"/></section>
-<aside class="panel"><h3>Texto del documento</h3><p class="text-xs text-[var(--muted)] leading-6 mt-3">El buscador del visor utiliza el texto que contiene el PDF. Para escaneos sin texto, puedes registrar una transcripción manual.</p>@if(auth.can('DIGITALIZACION')){<label class="mt-5">Transcripción para búsqueda<textarea rows="14" [(ngModel)]="text"></textarea></label><button class="btn w-full mt-4" [disabled]="busy()" (click)="saveText()">Guardar transcripción</button>}@else{<p class="mt-5 text-xs whitespace-pre-wrap leading-6">{{d.ocrTexto||'Sin transcripción registrada.'}}</p>}<p class="mt-6 text-[10px] leading-5 text-[var(--muted)]">Las consultas y descargas quedan registradas en la bitácora.</p></aside></div>}@else{<div class="empty">Abriendo documento…</div>}`})
-export class DocumentoDetalleComponent implements OnInit {api=inject(ArchiveApi);auth=inject(AuthService);dialog=inject(DialogService);route=inject(ActivatedRoute);doc=signal<DigitalFile|null>(null);record=signal<RecordFile|null>(null);busy=signal(false);text='';ngOnInit(){this.api.document(this.route.snapshot.paramMap.get('id')!).subscribe({next:d=>{this.doc.set(d);this.text=d.ocrTexto??'';this.api.record(d.expedienteId).subscribe({next:r=>this.record.set(r),error:e=>this.dialog.error(e)});},error:e=>this.dialog.error(e)});}
-download(){const d=this.doc()!;this.api.binary(d.id,true).subscribe({next:blob=>{const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=d.nombreArchivo;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},error:e=>this.dialog.error(e)});}
-async saveText(){this.busy.set(true);if(!await this.dialog.ask('Guardar transcripción','El texto se indexará y podrá encontrarse desde Explorar.')){this.busy.set(false);return;}this.api.saveText(this.doc()!,this.text,this.auth.usuario()!.usuarioId).subscribe({next:()=>{this.busy.set(false);this.dialog.info('Transcripción guardada','El texto ya está disponible para búsqueda.');},error:e=>{this.busy.set(false);this.dialog.error(e);}});}
+import { Component, inject, signal, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ArchiveApi } from '../../../../core/services/archive-api.service';
+import { AuthService } from '../../../../core/services/auth.service';
+import { DialogService } from '../../../../core/services/dialog.service';
+import { DigitalFile, RecordFile } from '../../../../core/models/archive.model';
+import { DocumentPreviewComponent } from '../../../../shared/components/document-preview.component';
+@Component({
+  selector: 'app-documento-detalle',
+  imports: [FormsModule, RouterLink, DocumentPreviewComponent],
+  template: ` <div class="page-heading">
+      <div>
+        <h1>Documento digital <strong>y OCR</strong></h1>
+        <p>Consulta el archivo, localiza texto y descarga con trazabilidad.</p>
+      </div>
+      @if (doc(); as d) {
+        <button class="btn secondary" (click)="download()">↓ Descargar copia</button>
+      }
+    </div>
+    @if (doc(); as d) {
+      <div class="workspace grid lg:grid-cols-[220px_minmax(300px,1fr)_280px] gap-6">
+        <aside class="panel">
+          <p class="eyebrow">CONTENIDO DEL EXPEDIENTE</p>
+          <h3 class="mt-5 break-words">{{ d.nombreArchivo }}</h3>
+          <dl class="data-list mt-4">
+            <div>
+              <dt>Tipo documental</dt>
+              <dd>{{ record()?.tipoNombre }}</dd>
+            </div>
+            <div>
+              <dt>Área de destino</dt>
+              <dd>{{ record()?.areaDestinoNombre }}</dd>
+            </div>
+            <div>
+              <dt>Formato de archivo</dt>
+              <dd>{{ d.tipoMime }}</dd>
+            </div>
+            <div>
+              <dt>Hash SHA-256 registrado</dt>
+              <dd class="!text-[9px]">{{ d.hashSha256 }}</dd>
+            </div>
+          </dl>
+          <a class="text-button block mt-6" [routerLink]="['/expedientes', d.expedienteId]"
+            >← Ficha completa</a
+          >
+        </aside>
+        <section class="min-w-0"><app-document-preview [id]="d.id" [full]="true" /></section>
+        <aside class="panel">
+          <h3>Texto del documento</h3>
+          <p class="text-xs text-[var(--muted)] leading-6 mt-3">
+            El buscador del visor utiliza el texto que contiene el PDF. Para escaneos sin texto,
+            puedes registrar una transcripción manual.
+          </p>
+          @if (auth.can('GESTOR_DOCUMENTAL')) {
+            <label class="mt-5"
+              >Transcripción para búsqueda<textarea rows="14" [(ngModel)]="text"></textarea></label
+            ><button class="btn w-full mt-4" [disabled]="busy()" (click)="saveText()">
+              Guardar transcripción
+            </button>
+          } @else {
+            <p class="mt-5 text-xs whitespace-pre-wrap leading-6">
+              {{ d.ocrTexto || 'Sin transcripción registrada.' }}
+            </p>
+          }
+          <p class="mt-6 text-[10px] leading-5 text-[var(--muted)]">
+            Las consultas y descargas quedan registradas en la bitácora.
+          </p>
+        </aside>
+      </div>
+    } @else {
+      <div class="empty">Abriendo documento…</div>
+    }`,
+})
+export class DocumentoDetalleComponent implements OnInit {
+  api = inject(ArchiveApi);
+  auth = inject(AuthService);
+  dialog = inject(DialogService);
+  route = inject(ActivatedRoute);
+  doc = signal<DigitalFile | null>(null);
+  record = signal<RecordFile | null>(null);
+  busy = signal(false);
+  text = '';
+  ngOnInit() {
+    this.api.document(this.route.snapshot.paramMap.get('id')!).subscribe({
+      next: (d) => {
+        this.doc.set(d);
+        this.text = d.ocrTexto ?? '';
+        this.api
+          .record(d.expedienteId)
+          .subscribe({ next: (r) => this.record.set(r), error: (e) => this.dialog.error(e) });
+      },
+      error: (e) => this.dialog.error(e),
+    });
+  }
+  download() {
+    const d = this.doc()!;
+    this.api.binary(d.id, true).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = d.nombreArchivo;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+      error: (e) => this.dialog.error(e),
+    });
+  }
+  async saveText() {
+    this.busy.set(true);
+    if (
+      !(await this.dialog.ask(
+        'Guardar transcripción',
+        'El texto se indexará y podrá encontrarse desde Explorar.',
+      ))
+    ) {
+      this.busy.set(false);
+      return;
+    }
+    this.api.saveText(this.doc()!, this.text, this.auth.usuario()!.usuarioId).subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.dialog.info('Transcripción guardada', 'El texto ya está disponible para búsqueda.');
+      },
+      error: (e) => {
+        this.busy.set(false);
+        this.dialog.error(e);
+      },
+    });
+  }
 }
-
