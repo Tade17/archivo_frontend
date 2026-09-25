@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, viewChild, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ArchiveApi } from '../../../../core/services/archive-api.service';
@@ -6,20 +6,29 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { DialogService } from '../../../../core/services/dialog.service';
 import { DigitalFile, RecordFile } from '../../../../core/models/archive.model';
 import { DocumentPreviewComponent } from '../../../../shared/components/document-preview.component';
+import { DocumentSearchComponent } from '../../../../shared/components/document-search.component';
+import { saveBlob } from '../../../../shared/utils/save-blob';
 @Component({
   selector: 'app-documento-detalle',
-  imports: [FormsModule, RouterLink, DocumentPreviewComponent],
+  imports: [FormsModule, RouterLink, DocumentPreviewComponent, DocumentSearchComponent],
   template: ` <div class="page-heading">
       <div>
         <h1>Documento digital <strong>y OCR</strong></h1>
         <p>Consulta el archivo, localiza texto y descarga con trazabilidad.</p>
       </div>
       @if (doc(); as d) {
-        <button class="btn secondary" (click)="download()">↓ Descargar copia</button>
+        <div class="rounded-[5px] bg-[var(--soft)] border border-[#cfe0ec] px-4 py-3 max-w-[340px]">
+          <p class="eyebrow !text-[9px]">{{ d.expedienteCodigoUnico }} · DOCUMENTO</p>
+          <p class="text-xs font-bold text-[var(--deep)] mt-1 break-words">
+            {{ d.nombreArchivo }}@if (viewer()?.pages()) {
+              · {{ viewer()?.pages() }} {{ viewer()?.pages() === 1 ? 'página' : 'páginas' }}
+            }
+          </p>
+        </div>
       }
     </div>
     @if (doc(); as d) {
-      <div class="workspace grid lg:grid-cols-[220px_minmax(300px,1fr)_280px] gap-6">
+      <div class="workspace grid lg:grid-cols-[220px_minmax(300px,1fr)_300px] gap-6 items-start">
         <aside class="panel">
           <p class="eyebrow">CONTENIDO DEL EXPEDIENTE</p>
           <h3 class="mt-5 break-words">{{ d.nombreArchivo }}</h3>
@@ -45,25 +54,35 @@ import { DocumentPreviewComponent } from '../../../../shared/components/document
             >← Ficha completa</a
           >
         </aside>
-        <section class="min-w-0"><app-document-preview [id]="d.id" [full]="true" /></section>
-        <aside class="panel">
-          <h3>Texto del documento</h3>
-          <p class="text-xs text-[var(--muted)] leading-6 mt-3">
-            El buscador del visor utiliza el texto que contiene el PDF. Para escaneos sin texto,
-            puedes registrar una transcripción manual.
-          </p>
-          @if (auth.can('GESTOR_DOCUMENTAL')) {
-            <label class="mt-5"
-              >Transcripción para búsqueda<textarea rows="14" [(ngModel)]="text"></textarea></label
-            ><button class="btn w-full mt-4" [disabled]="busy()" (click)="saveText()">
-              Guardar transcripción
-            </button>
-          } @else {
-            <p class="mt-5 text-xs whitespace-pre-wrap leading-6">
-              {{ d.ocrTexto || 'Sin transcripción registrada.' }}
-            </p>
+        <section class="min-w-0">
+          <app-document-preview [id]="d.id" [name]="d.nombreArchivo" />
+        </section>
+        <aside class="min-w-0">
+          @if (viewer(); as v) {
+            <app-document-search [viewer]="v" />
           }
-          <p class="mt-6 text-[10px] leading-5 text-[var(--muted)]">
+          <details class="panel !p-5 mt-4">
+            <summary class="cursor-pointer font-bold text-[var(--deep)]">
+              Transcripción del texto
+            </summary>
+            <p class="text-xs text-[var(--muted)] leading-6 mt-3">
+              El buscador usa el texto que contiene el PDF. Para escaneos sin texto, se puede
+              registrar una transcripción manual.
+            </p>
+            @if (auth.can('GESTOR_DOCUMENTAL')) {
+              <label class="mt-4"
+                >Transcripción para búsqueda<textarea rows="10" [(ngModel)]="text"></textarea></label
+              ><button class="btn w-full mt-4" [disabled]="busy()" (click)="saveText()">
+                Guardar transcripción
+              </button>
+            } @else {
+              <p class="mt-4 text-xs whitespace-pre-wrap leading-6">
+                {{ d.ocrTexto || 'Sin transcripción registrada.' }}
+              </p>
+            }
+          </details>
+          <button class="btn w-full mt-4" (click)="download()">↓ Descargar copia</button>
+          <p class="mt-3 text-[10px] leading-5 text-[var(--muted)] text-center">
             Las consultas y descargas quedan registradas en la bitácora.
           </p>
         </aside>
@@ -77,6 +96,7 @@ export class DocumentoDetalleComponent implements OnInit {
   auth = inject(AuthService);
   dialog = inject(DialogService);
   route = inject(ActivatedRoute);
+  viewer = viewChild(DocumentPreviewComponent);
   doc = signal<DigitalFile | null>(null);
   record = signal<RecordFile | null>(null);
   busy = signal(false);
@@ -96,14 +116,7 @@ export class DocumentoDetalleComponent implements OnInit {
   download() {
     const d = this.doc()!;
     this.api.binary(d.id, true).subscribe({
-      next: (blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = d.nombreArchivo;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      },
+      next: (blob) => saveBlob(blob, d.nombreArchivo),
       error: (e) => this.dialog.error(e),
     });
   }

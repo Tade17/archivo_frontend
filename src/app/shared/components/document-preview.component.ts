@@ -9,7 +9,6 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { ArchiveApi } from '../../core/services/archive-api.service';
 import { DialogService } from '../../core/services/dialog.service';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
@@ -29,15 +28,18 @@ interface Segment {
   to: number;
 }
 
-interface Match {
+export interface Match {
   page: number;
   segments: Segment[];
+  /** Fragmento de texto alrededor de la coincidencia, para mostrarlo en la lista. */
+  snippet: string;
 }
 
 /** Texto de una página listo para buscar: plegado (sin tildes ni mayúsculas) y con su mapa de posiciones. */
 interface PageText {
   items: PdfTextItem[];
   starts: number[];
+  raw: string;
   folded: string;
 }
 
@@ -48,16 +50,28 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
 
 @Component({
   selector: 'app-document-preview',
-  imports: [FormsModule],
+  imports: [],
   template: `
     <div class="h-full flex flex-col min-h-[460px]">
       <div
-        class="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--line)] px-4 py-3 bg-white"
+        class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-4 py-3 bg-white"
       >
-        <span class="text-xs text-[var(--muted)]">{{
-          loading() ? 'Abriendo documento…' : pages() ? page() + ' / ' + pages() : ''
-        }}</span>
-        <div class="flex gap-2">
+        @if (name(); as fileName) {
+          <span class="inline-flex items-center gap-2 min-w-0 text-xs font-semibold text-[var(--deep)]">
+            <span
+              class="rounded-[3px] text-white text-[8px] font-bold px-1.5 py-1 leading-none"
+              [class]="extension(fileName) === 'PDF' ? 'bg-[#E53935]' : 'bg-[var(--brand)]'"
+              >{{ extension(fileName) }}</span
+            >
+            <span class="truncate">{{ fileName }}</span>
+          </span>
+        } @else {
+          <span class="text-xs text-[var(--muted)]">{{ loading() ? 'Abriendo documento…' : '' }}</span>
+        }
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-[var(--muted)] mr-1">{{
+            loading() && name() ? 'Abriendo…' : pages() ? page() + ' / ' + pages() : ''
+          }}</span>
           <button class="icon-button" aria-label="Reducir" (click)="zoom(-0.15)" [disabled]="!pdf">
             −
           </button>
@@ -74,52 +88,6 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
           </button>
         </div>
       </div>
-      @if (full()) {
-        <div class="flex gap-2 bg-white p-3 border-b border-[var(--line)]">
-          <input
-            aria-label="Buscar dentro del documento"
-            placeholder="Buscar dentro del documento…"
-            [(ngModel)]="query"
-            [disabled]="!pdf"
-            (keydown.enter)="submit()"
-            (keydown.shift.enter)="step(-1)"
-          />
-          <button class="btn small secondary" (click)="find()" [disabled]="!pdf || searching()">
-            Buscar
-          </button>
-        </div>
-        @if (imageUrl()) {
-          <p class="p-3 text-xs bg-white border-b border-[var(--line)]">
-            Este documento es una imagen sin texto seleccionable, por eso no se puede buscar dentro
-            de él.
-          </p>
-        }
-        @if (searchDone()) {
-          <div
-            class="flex flex-wrap items-center gap-3 p-3 text-xs bg-white border-b border-[var(--line)]"
-            aria-live="polite"
-          >
-            @if (matches().length) {
-              <span
-                >Coincidencia {{ current() + 1 }} de {{ matches().length }} · página
-                {{ matches()[current()]?.page }}</span
-              >
-              <button
-                class="icon-button"
-                aria-label="Coincidencia anterior"
-                (click)="step(-1)"
-              >
-                ‹
-              </button>
-              <button class="icon-button" aria-label="Coincidencia siguiente" (click)="step(1)">
-                ›
-              </button>
-            } @else {
-              <span>Sin coincidencias.</span>
-            }
-          </div>
-        }
-      }
       <div class="bg-[var(--soft)] overflow-auto flex-1 p-5 relative text-center">
         <span #marker class="absolute pointer-events-none" aria-hidden="true"></span>
         @if (!id()) {
@@ -168,7 +136,7 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
 })
 export class DocumentPreviewComponent implements OnDestroy {
   id = input<string | null>(null);
-  full = input(false);
+  name = input<string | null>(null);
   canvas = viewChild<ElementRef<HTMLCanvasElement>>('canvas');
   marker = viewChild<ElementRef<HTMLElement>>('marker');
   api = inject(ArchiveApi);
@@ -303,6 +271,11 @@ export class DocumentPreviewComponent implements OnDestroy {
     }
   }
 
+  /** Extensión en mayúsculas para la etiqueta del archivo (PDF, TIFF…). */
+  extension(fileName: string): string {
+    return (fileName.split('.').pop() ?? '').slice(0, 4).toUpperCase();
+  }
+
   go(n: number) {
     this.page.set(n);
     void this.render();
@@ -318,6 +291,10 @@ export class DocumentPreviewComponent implements OnDestroy {
     void this.render();
   }
 
+  setQuery(value: string) {
+    this.query = value;
+  }
+
   /** Enter: busca; si ya hay resultados de esta misma búsqueda, avanza a la siguiente coincidencia. */
   submit() {
     if (this.searchDone() && this.lastQuery === this.query && this.matches().length) this.step(1);
@@ -329,7 +306,7 @@ export class DocumentPreviewComponent implements OnDestroy {
     if (total) this.select((this.current() + direction + total) % total);
   }
 
-  private select(index: number) {
+  select(index: number) {
     this.current.set(index);
     this.page.set(this.matches()[index].page);
     this.reveal = true;
@@ -368,7 +345,11 @@ export class DocumentPreviewComponent implements OnDestroy {
         for (;;) {
           const at = text.folded.indexOf(needle, from);
           if (at < 0) break;
-          found.push({ page: n, segments: this.segmentsOf(text, at, at + needle.length) });
+          found.push({
+            page: n,
+            segments: this.segmentsOf(text, at, at + needle.length),
+            snippet: this.snippetOf(text.raw, at, needle.length),
+          });
           from = at + needle.length;
         }
       }
@@ -393,7 +374,7 @@ export class DocumentPreviewComponent implements OnDestroy {
       starts.push(joined.length);
       joined += item.str;
     });
-    const result = { items, starts, folded: fold(joined) };
+    const result = { items, starts, raw: joined, folded: fold(joined) };
     this.pageTexts.set(n, result);
     return result;
   }
@@ -403,6 +384,12 @@ export class DocumentPreviewComponent implements OnDestroy {
     const sameLine = Math.abs(previous.transform[5] - item.transform[5]) < (item.height || 1) * 0.5;
     const gap = item.transform[4] - (previous.transform[4] + previous.width);
     return !(sameLine && gap < (item.height || 1) * 0.15);
+  }
+
+  private snippetOf(raw: string, at: number, length: number): string {
+    const from = Math.max(0, at - 32);
+    const to = Math.min(raw.length, at + length + 48);
+    return (from > 0 ? '…' : '') + raw.slice(from, to).trim() + (to < raw.length ? '…' : '');
   }
 
   private segmentsOf(text: PageText, start: number, end: number): Segment[] {

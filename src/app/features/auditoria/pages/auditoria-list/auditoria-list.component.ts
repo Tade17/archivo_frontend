@@ -19,11 +19,16 @@ import { PagerComponent } from '../../../../shared/components/pager.component';
       </button>
     </div>
     <div class="workspace">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         @for (s of stats; track s.key) {
-          <div class="stat">
-            <strong>{{ summary()[s.key] ?? 0 }}</strong
-            ><span>{{ s.label }}</span>
+          <div
+            class="bg-white border border-[var(--line)] rounded-[6px] px-5 py-4 flex items-baseline gap-3"
+          >
+            <strong
+              class="font-light text-[28px] leading-none tabular-nums"
+              [style.color]="s.color"
+              >{{ count(s.key) }}</strong
+            ><span class="text-[11px] text-[var(--muted)]">{{ s.label }}</span>
           </div>
         }
       </div>
@@ -74,7 +79,15 @@ import { PagerComponent } from '../../../../shared/components/pager.component';
                     </td>
                     <td>{{ e.usuario }}</td>
                     <td>
-                      <span class="badge neutral">{{ e.accion }}</span>
+                      <span
+                        class="inline-flex items-center gap-2 font-semibold"
+                        [style.color]="actionColor(e.accion)"
+                        ><span
+                          class="w-2 h-2 rounded-full"
+                          [style.background]="actionColor(e.accion)"
+                        ></span
+                        >{{ actionLabel(e.accion) }}</span
+                      >
                     </td>
                     <td>{{ e.modulo }}</td>
                   </tr>
@@ -96,7 +109,7 @@ import { PagerComponent } from '../../../../shared/components/pager.component';
         <aside class="panel">
           @if (selected(); as e) {
             <p class="eyebrow">EVENTO SELECCIONADO</p>
-            <h2 class="mt-4">{{ e.accion }}</h2>
+            <h2 class="mt-4" [style.color]="actionColor(e.accion)">{{ actionLabel(e.accion) }}</h2>
             <dl class="data-list mt-5">
               <div>
                 <dt>ID</dt>
@@ -137,11 +150,28 @@ export class AuditoriaListComponent implements OnInit {
   actions = ['CREAR', 'MODIFICAR', 'CONSULTAR', 'DESCARGAR', 'ELIMINAR'];
   modules = ['Expediente', 'DocumentoDigital', 'Usuario'];
   stats = [
-    { key: 'eventos', label: 'eventos hoy' },
-    { key: 'descargas', label: 'descargas hoy' },
-    { key: 'eliminaciones', label: 'eliminaciones hoy' },
-    { key: 'consultas', label: 'consultas hoy' },
+    { key: 'eventos', label: 'eventos hoy', color: '#194F9A' },
+    { key: 'descargas', label: 'descargas hoy', color: '#3399CC' },
+    { key: 'eliminaciones', label: 'eliminaciones hoy', color: '#A2372E' },
+    { key: 'consultas', label: 'consultas hoy', color: '#194F9A' },
   ];
+  private readonly actionStyles: Record<string, { label: string; color: string }> = {
+    CREAR: { label: 'Creó', color: '#237A57' },
+    MODIFICAR: { label: 'Modificó', color: '#B7791F' },
+    CONSULTAR: { label: 'Consultó', color: '#194F9A' },
+    DESCARGAR: { label: 'Descargó', color: '#3399CC' },
+    ELIMINAR: { label: 'Eliminó', color: '#A2372E' },
+  };
+  actionLabel(action: string): string {
+    return this.actionStyles[action]?.label ?? action;
+  }
+  actionColor(action: string): string {
+    return this.actionStyles[action]?.color ?? '#667482';
+  }
+  /** Cifras de dos dígitos como en el diseño (03, 00, 12). */
+  count(key: string): string {
+    return String(this.summary()[key] ?? 0).padStart(2, '0');
+  }
   ngOnInit() {
     this.load(0);
     this.api

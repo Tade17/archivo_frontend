@@ -26,17 +26,30 @@ import { PagerComponent } from '../../../../shared/components/pager.component';
         </p>
         @for (u of result()?.contenido; track u.id) {
           <button
-            class="w-full text-left py-5 px-3 border-b border-[var(--line)]"
+            class="w-full text-left py-4 px-3 border-b border-[var(--line)]"
             [class]="selected()?.id === u.id ? 'bg-[var(--soft)]' : ''"
             (click)="selected.set(u)"
           >
-            <div class="flex justify-between gap-2">
-              <strong>{{ u.nombre }}</strong
-              ><span class="badge" [class.warning]="!u.activo">{{
-                u.activo ? 'Activa' : 'Suspendida'
-              }}</span>
+            <div class="flex items-center gap-3">
+              <span
+                class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold"
+                [class]="
+                  selected()?.id === u.id
+                    ? 'bg-[var(--brand)] text-white'
+                    : 'bg-[#DDECF5] text-[var(--deep)]'
+                "
+                >{{ initials(u.nombre) }}</span
+              >
+              <div class="min-w-0 flex-1">
+                <div class="flex justify-between items-center gap-2">
+                  <strong class="truncate">{{ u.nombre }}</strong
+                  ><span class="badge shrink-0" [class.warning]="!u.activo">{{
+                    u.activo ? 'Activa' : 'Suspendida'
+                  }}</span>
+                </div>
+                <p class="text-xs text-[var(--muted)] mt-1">{{ roleLabel(u.rolNombre) }}</p>
+              </div>
             </div>
-            <p class="text-xs text-[var(--muted)] mt-2">{{ roleLabel(u.rolNombre) }}</p>
           </button>
         }
         <app-pager
@@ -49,17 +62,23 @@ import { PagerComponent } from '../../../../shared/components/pager.component';
       <section class="panel">
         @if (selected(); as u) {
           <div class="flex flex-wrap justify-between gap-4">
-            <div>
-              <h2>{{ u.nombre }}</h2>
-              <p class="text-xs text-[var(--muted)] mt-2">{{ u.correo }}</p>
-              <span class="badge neutral mt-3">{{ roleLabel(u.rolNombre) }}</span>
+            <div class="flex items-start gap-4">
+              <span
+                class="w-12 h-12 shrink-0 rounded-full bg-[var(--brand)] text-white flex items-center justify-center text-sm font-bold"
+                >{{ initials(u.nombre) }}</span
+              >
+              <div>
+                <h2>{{ u.nombre }}</h2>
+                <p class="text-xs text-[var(--muted)] mt-1">{{ u.correo }}</p>
+                <span class="badge neutral mt-3">{{ roleLabel(u.rolNombre) }}</span>
+              </div>
             </div>
             <div class="flex gap-3 self-start">
               <a class="btn secondary" routerLink="/usuarios/nuevo" [queryParams]="{ editar: u.id }"
                 >Editar usuario</a
               >
               @if (u.activo && u.id !== auth.usuario()?.usuarioId) {
-                <button class="btn secondary" [disabled]="busy()" (click)="suspend(u)">
+                <button class="btn danger-soft" [disabled]="busy()" (click)="suspend(u)">
                   Suspender acceso
                 </button>
               }
@@ -137,6 +156,14 @@ export class UsuarioListComponent implements OnInit {
       m !== 'auditoria' &&
       (u.rolNombre === 'ADMIN' || (m !== 'usuarios' && u.rolNombre === 'GESTOR_DOCUMENTAL'))
     );
+  }
+  initials(name: string): string {
+    return name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((word) => word[0].toUpperCase())
+      .join('');
   }
   roleLabel(name: string) {
     return (
