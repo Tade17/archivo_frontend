@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, computed, inject, signal, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { HttpEventType } from '@angular/common/http';
@@ -16,17 +16,39 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
         <h1>Cargar varios <strong>documentos</strong></h1>
         <p>Añade varios archivos a un expediente que ya existe.</p>
       </div>
-      @if (record(); as r) {
-        <a [routerLink]="['/expedientes', r.id]" class="text-button">{{ r.codigoUnico }} →</a>
-      }
+      <div class="flex gap-3">
+        @for (s of steps(); track s.number) {
+          <div
+            class="min-w-[112px] rounded-[6px] border px-4 py-3"
+            [class]="
+              s.done
+                ? 'border-[#7CC4A0] bg-[#E7F4ED] text-[var(--green)]'
+                : s.current
+                  ? 'border-[var(--brand)] bg-[#DDECF5] text-[var(--deep)]'
+                  : 'border-[var(--line)] bg-white text-[var(--muted)]'
+            "
+          >
+            <p class="text-[10px]">{{ s.number }}</p>
+            <p class="text-xs font-bold mt-1">{{ s.label }}</p>
+          </div>
+        }
+      </div>
     </div>
     <div class="workspace">
-      <div class="panel mb-6">
-        <p class="eyebrow mb-3">EXPEDIENTE DE DESTINO</p>
+      <div class="panel mb-6 !p-0 overflow-hidden">
+        <div class="bg-[var(--deep)] text-white px-6 py-3 flex justify-between items-center gap-4">
+          <p class="text-[9px] tracking-[.12em] text-[var(--yellow)]">EXPEDIENTE DE DESTINO</p>
+          @if (record(); as r) {
+            <a [routerLink]="['/expedientes', r.id]" class="text-[11px] !text-white underline"
+              >Ver ficha →</a
+            >
+          }
+        </div>
+        <div class="p-6">
         @if (record(); as r) {
           <div class="flex justify-between gap-3">
             <div>
-              <strong>{{ r.codigoUnico }}</strong>
+              <strong class="text-[var(--deep)]">{{ r.codigoUnico }}</strong>
               <p class="text-xs mt-2">{{ r.asunto }}</p>
             </div>
             <button class="text-button" [disabled]="busy()" (click)="record.set(null)">
@@ -36,6 +58,7 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
         } @else {
           <app-record-picker (chosen)="record.set($event)" />
         }
+        </div>
       </div>
       <div class="grid lg:grid-cols-[1fr_360px] gap-6">
         <section class="panel">
@@ -164,6 +187,15 @@ export class CargaDocumentosComponent implements OnInit {
   dpi = 300;
   busy = signal(false);
   progress = signal(0);
+  steps = computed(() => {
+    const hasRecord = !!this.record();
+    const queued = this.files().length > 0;
+    return [
+      { number: '01', label: 'Expediente', done: hasRecord, current: !hasRecord },
+      { number: '02', label: 'Captura', done: hasRecord && queued, current: hasRecord && !queued },
+      { number: '03', label: 'Cola y carga', done: false, current: hasRecord && queued },
+    ];
+  });
   ngOnInit() {
     const id = this.route.snapshot.queryParamMap.get('expedienteId');
     if (id)

@@ -24,31 +24,56 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
       <a routerLink="/buscar" class="btn secondary">Volver a Explorar</a>
     </div>
     <div class="workspace grid lg:grid-cols-[240px_1fr] gap-8">
-      <aside>
-        <h2 class="mb-4">Registro automático</h2>
-        <div class="space-y-7 text-[var(--deep)]">
-          <div>
-            <strong>El sistema asignará el número</strong>
-            <p class="mt-2 text-xs text-[var(--muted)]">
-              No necesitas buscar ni adivinar el siguiente correlativo.
-            </p>
-          </div>
-        </div>
-        <div class="rule"></div>
-        <p class="text-xs leading-6 text-[var(--muted)]">
-          Al guardar se generarán automáticamente el número de registro y el código del expediente.
-        </p>
+      <aside class="space-y-4">
+        <section class="panel">
+          <p class="eyebrow">RUTA DEL REGISTRO</p>
+          <ol class="mt-5 space-y-5">
+            @for (step of steps; track step.number) {
+              <li class="flex items-start gap-3">
+                <span
+                  class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold"
+                  [class]="
+                    step.number === '01'
+                      ? 'bg-[var(--brand)] text-white'
+                      : 'bg-[#DDECF5] text-[var(--deep)]'
+                  "
+                  >{{ step.number }}</span
+                >
+                <span>
+                  <strong class="block text-xs text-[var(--deep)]">{{ step.title }}</strong>
+                  <span class="block text-[10px] text-[var(--muted)] mt-1">{{ step.detail }}</span>
+                </span>
+              </li>
+            }
+          </ol>
+        </section>
+        <section class="panel !bg-[#E7F4ED] !border-[#BFE0CE]">
+          <strong class="block text-xs text-[var(--green)]">Numeración automática</strong>
+          <p class="mt-2 text-[11px] leading-5 text-[var(--muted)]">
+            El sistema asigna el número de registro y el código del expediente al guardar. No hace
+            falta buscar ni adivinar el siguiente correlativo.
+          </p>
+        </section>
         @if (auth.hasRole('ADMIN')) {
-          <a class="text-button mt-5 block" routerLink="/catalogos">Configurar áreas y tipos →</a>
+          <a class="text-button block" routerLink="/catalogos">Configurar áreas y tipos →</a>
         }
       </aside>
-      <form #form="ngForm" class="panel" (ngSubmit)="submit()">
-        <div class="section-title">
+      <form #form="ngForm" class="panel !p-0 overflow-hidden" (ngSubmit)="submit()">
+        <div class="bg-[var(--deep)] text-white px-6 py-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2>{{ id ? 'Editar información' : 'Datos del documento' }}</h2>
+            <p class="text-[9px] tracking-[.12em] text-[var(--yellow)]">
+              {{ id ? 'EDICIÓN DE EXPEDIENTE' : 'NUEVO EXPEDIENTE DIGITAL' }}
+            </p>
+            <h2 class="!text-white !text-base mt-1">Ficha de recepción</h2>
           </div>
-          <span class="badge neutral">{{ id ? 'Edición' : 'Número automático' }}</span>
+          <div class="text-right text-[10px]">
+            <p class="tracking-[.1em] text-[#B9CDE6]">CÓDIGO ÚNICO</p>
+            <p class="font-semibold mt-1">{{ id ? 'Ya asignado' : 'Se asignará al registrar' }}</p>
+          </div>
         </div>
+        <div class="p-6">
+        <p class="eyebrow">01 CLASIFICACIÓN</p>
+        <h2 class="mb-5">Describe el expediente</h2>
         <div class="field-grid">
           <label
             >Número de documento<input
@@ -96,7 +121,8 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
         @if (!id) {
           <div class="rule"></div>
           <section aria-labelledby="documentos-iniciales">
-            <h3 id="documentos-iniciales">Documento digital</h3>
+            <p class="eyebrow">02 DOCUMENTO DIGITAL</p>
+            <h2 id="documentos-iniciales" class="mt-1">Adjunta los archivos</h2>
             <p class="text-xs text-[var(--muted)] leading-6 mt-2">
               Puedes adjuntar uno o varios archivos ahora. También podrás hacerlo después desde la
               ficha del expediente.
@@ -141,8 +167,11 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
             }
           </section>
         }
-        <div class="rule"></div>
-        <div class="flex flex-wrap justify-end gap-3">
+        </div>
+        <div
+          class="bg-[#F4F8FB] border-t border-[var(--line)] px-6 py-4 flex flex-wrap items-center justify-between gap-3"
+        >
+          <span class="text-[10px] text-[var(--muted)]">Los campos con datos son obligatorios.</span>
           <button class="btn" [disabled]="!form.valid || busy()">
             {{ busyLabel() || (id ? 'Guardar cambios' : 'Crear expediente') }}
           </button>
@@ -156,6 +185,11 @@ export class ExpedienteFormComponent implements OnInit {
   dialog = inject(DialogService);
   router = inject(Router);
   route = inject(ActivatedRoute);
+  steps = [
+    { number: '01', title: 'Clasificar expediente', detail: 'Área, tipo y asunto' },
+    { number: '02', title: 'Adjuntar documento', detail: 'PDF, TIFF, JPG o PNG' },
+    { number: '03', title: 'Registro automático', detail: 'Número y código asignados' },
+  ];
   catalogs = signal<Catalogs | null>(null);
   id = this.route.snapshot.paramMap.get('id');
   busy = signal(false);
