@@ -56,7 +56,7 @@ export class ArchiveApi {
     });
   }
   saveText(d: DigitalFile, text: string, userId: string) {
-    return this.http.put(this.base + '/documentos-digitales/' + d.id, {
+    return this.http.put<DigitalFile>(this.base + '/documentos-digitales/' + d.id, {
       nombreArchivo: d.nombreArchivo,
       tecnicoResponsableId: userId,
       escanerUtilizado: d.escanerUtilizado,
@@ -64,6 +64,9 @@ export class ArchiveApi {
       formatoSalida: d.formatoSalida,
       ocrTexto: text,
     });
+  }
+  retryOcr(id: string) {
+    return this.http.post<void>(this.base + '/documentos-digitales/' + id + '/ocr/reintentar', {});
   }
   users(page = 0) {
     return this.http.get<Page<User>>(this.base + '/usuarios', { params: { page, size: 10 } });

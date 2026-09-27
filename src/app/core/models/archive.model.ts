@@ -48,6 +48,13 @@ export interface DigitalFile {
   resolucionDpi: number;
   formatoSalida: string;
   ocrTexto: string | null;
+  ocrEstado: 'PENDIENTE' | 'PROCESANDO' | 'COMPLETADO' | 'REQUIERE_REVISION' | 'ERROR';
+  ocrConfianza: number | null;
+  ocrPaginas: number | null;
+  ocrError: string | null;
+  ocrIntentos: number;
+  ocrRevisado: boolean;
+  ocrActualizadoEn: string | null;
 }
 export interface User {
   id: string;

@@ -248,7 +248,7 @@ export class CargaDocumentosComponent implements OnInit {
           this.files.set([]);
           this.dialog.info(
             'Lote guardado',
-            'Los archivos ya están disponibles para consulta. La extracción automática de OCR queda pendiente.',
+            'Los archivos ya están disponibles. El reconocimiento de texto se ejecutará automáticamente en segundo plano.',
           );
         }
       },

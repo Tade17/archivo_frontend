@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ArchiveApi } from '../../../../core/services/archive-api.service';
@@ -6,20 +6,21 @@ import { AuthService } from '../../../../core/services/auth.service';
 import { DialogService } from '../../../../core/services/dialog.service';
 import { DigitalFile, RecordFile } from '../../../../core/models/archive.model';
 import { DocumentPreviewComponent } from '../../../../shared/components/document-preview.component';
+
 @Component({
   selector: 'app-documento-detalle',
   imports: [FormsModule, RouterLink, DocumentPreviewComponent],
   template: ` <div class="page-heading">
       <div>
-        <h1>Documento digital <strong>y OCR</strong></h1>
-        <p>Consulta el archivo, localiza texto y descarga con trazabilidad.</p>
+        <h1>Documento <strong>digital</strong></h1>
+        <p>Consulta el archivo y su texto reconocido automáticamente.</p>
       </div>
       @if (doc(); as d) {
         <button class="btn secondary" (click)="download()">↓ Descargar copia</button>
       }
     </div>
     @if (doc(); as d) {
-      <div class="workspace grid lg:grid-cols-[220px_minmax(300px,1fr)_280px] gap-6">
+      <div class="workspace grid lg:grid-cols-[220px_minmax(300px,1fr)_320px] gap-6">
         <aside class="panel">
           <p class="eyebrow">CONTENIDO DEL EXPEDIENTE</p>
           <h3 class="mt-5 break-words">{{ d.nombreArchivo }}</h3>
@@ -46,25 +47,62 @@ import { DocumentPreviewComponent } from '../../../../shared/components/document
           >
         </aside>
         <section class="min-w-0"><app-document-preview [id]="d.id" [full]="true" /></section>
-        <aside class="panel">
-          <h3>Texto del documento</h3>
-          <p class="text-xs text-[var(--muted)] leading-6 mt-3">
-            El buscador del visor utiliza el texto que contiene el PDF. Para escaneos sin texto,
-            puedes registrar una transcripción manual.
+        <aside class="panel min-w-0">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h3>Texto reconocido</h3>
+            <span
+              class="badge"
+              [class.neutral]="['PENDIENTE', 'PROCESANDO'].includes(d.ocrEstado)"
+              [class.warning]="['REQUIERE_REVISION', 'ERROR'].includes(d.ocrEstado)"
+              >{{ statusLabel(d) }}</span
+            >
+          </div>
+          <p class="text-xs text-[var(--muted)] leading-6 mt-3" aria-live="polite">
+            {{ statusMessage(d) }}
           </p>
-          @if (auth.can('GESTOR_DOCUMENTAL')) {
-            <label class="mt-5"
-              >Transcripción para búsqueda<textarea rows="14" [(ngModel)]="text"></textarea></label
-            ><button class="btn w-full mt-4" [disabled]="busy()" (click)="saveText()">
-              Guardar transcripción
-            </button>
-          } @else {
-            <p class="mt-5 text-xs whitespace-pre-wrap leading-6">
-              {{ d.ocrTexto || 'Sin transcripción registrada.' }}
+          @if (d.ocrConfianza !== null) {
+            <p class="text-[10px] text-[var(--muted)] mt-2">
+              Confianza estimada: {{ confidencePercent(d) }}% · {{ d.ocrPaginas ?? 1 }} página(s)
             </p>
           }
+          @if (!['PENDIENTE', 'PROCESANDO'].includes(d.ocrEstado)) {
+            @if (editing()) {
+              <label class="mt-5"
+                >Corregir texto reconocido<textarea
+                  rows="16"
+                  maxlength="2000000"
+                  [(ngModel)]="text"
+                ></textarea>
+              </label>
+              <div class="flex flex-wrap gap-3 mt-4">
+                <button class="btn" [disabled]="busy() || !text.trim()" (click)="saveText()">
+                  {{ busy() ? 'Guardando…' : 'Guardar corrección' }}
+                </button>
+                <button class="btn secondary" [disabled]="busy()" (click)="cancelEdit()">
+                  Cancelar
+                </button>
+              </div>
+            } @else {
+              <p
+                class="mt-5 max-h-[520px] overflow-auto text-xs whitespace-pre-wrap break-words leading-6"
+              >
+                {{ d.ocrTexto || 'No se detectó texto en este documento.' }}
+              </p>
+              @if (auth.can('GESTOR_DOCUMENTAL')) {
+                <div class="flex flex-wrap gap-3 mt-5">
+                  <button class="btn secondary" (click)="startEdit()">Corregir texto</button>
+                  @if (d.ocrEstado === 'ERROR') {
+                    <button class="btn" [disabled]="busy()" (click)="retryOcr()">
+                      {{ busy() ? 'Reintentando…' : 'Reintentar OCR' }}
+                    </button>
+                  }
+                </div>
+              }
+            }
+          }
           <p class="mt-6 text-[10px] leading-5 text-[var(--muted)]">
-            Las consultas y descargas quedan registradas en la bitácora.
+            El texto se incorpora automáticamente a la búsqueda. Las consultas y descargas quedan
+            registradas en la bitácora.
           </p>
         </aside>
       </div>
@@ -72,7 +110,7 @@ import { DocumentPreviewComponent } from '../../../../shared/components/document
       <div class="empty">Abriendo documento…</div>
     }`,
 })
-export class DocumentoDetalleComponent implements OnInit {
+export class DocumentoDetalleComponent implements OnInit, OnDestroy {
   api = inject(ArchiveApi);
   auth = inject(AuthService);
   dialog = inject(DialogService);
@@ -80,52 +118,142 @@ export class DocumentoDetalleComponent implements OnInit {
   doc = signal<DigitalFile | null>(null);
   record = signal<RecordFile | null>(null);
   busy = signal(false);
+  editing = signal(false);
   text = '';
+  private documentId = this.route.snapshot.paramMap.get('id')!;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+
   ngOnInit() {
-    this.api.document(this.route.snapshot.paramMap.get('id')!).subscribe({
-      next: (d) => {
-        this.doc.set(d);
-        this.text = d.ocrTexto ?? '';
-        this.api
-          .record(d.expedienteId)
-          .subscribe({ next: (r) => this.record.set(r), error: (e) => this.dialog.error(e) });
+    this.loadDocument(true, true);
+  }
+
+  ngOnDestroy() {
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+  }
+
+  private loadDocument(showError: boolean, loadRecord: boolean) {
+    this.api.document(this.documentId).subscribe({
+      next: (document) => {
+        this.doc.set(document);
+        if (!this.editing()) this.text = document.ocrTexto ?? '';
+        if (loadRecord) {
+          this.api.record(document.expedienteId).subscribe({
+            next: (record) => this.record.set(record),
+            error: (error) => this.dialog.error(error),
+          });
+        }
+        this.schedulePoll(document);
       },
-      error: (e) => this.dialog.error(e),
+      error: (error) => {
+        if (showError) this.dialog.error(error);
+      },
     });
   }
+
+  private schedulePoll(document: DigitalFile) {
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    if (!['PENDIENTE', 'PROCESANDO'].includes(document.ocrEstado)) return;
+    this.pollTimer = setTimeout(() => this.loadDocument(false, false), 2500);
+  }
+
+  statusLabel(document: DigitalFile) {
+    return {
+      PENDIENTE: 'OCR pendiente',
+      PROCESANDO: 'Reconociendo texto',
+      COMPLETADO: document.ocrRevisado ? 'Texto revisado' : 'OCR listo',
+      REQUIERE_REVISION: 'Revisión recomendada',
+      ERROR: 'No se pudo procesar',
+    }[document.ocrEstado];
+  }
+
+  statusMessage(document: DigitalFile) {
+    return {
+      PENDIENTE: 'El documento está en cola. Puedes seguir trabajando mientras se procesa.',
+      PROCESANDO:
+        'El sistema está leyendo el documento. Esta vista se actualizará automáticamente.',
+      COMPLETADO: document.ocrRevisado
+        ? 'Una persona revisó el texto y guardó sus correcciones.'
+        : 'El texto está disponible para consulta y búsqueda.',
+      REQUIERE_REVISION:
+        'El resultado tiene baja confianza o no contiene texto suficiente. Conviene revisarlo.',
+      ERROR:
+        document.ocrError || 'El servicio OCR no pudo procesar el archivo. Puedes reintentarlo.',
+    }[document.ocrEstado];
+  }
+
+  confidencePercent(document: DigitalFile) {
+    return Math.round((document.ocrConfianza ?? 0) * 100);
+  }
+
+  startEdit() {
+    this.text = this.doc()?.ocrTexto ?? '';
+    this.editing.set(true);
+  }
+
+  cancelEdit() {
+    this.text = this.doc()?.ocrTexto ?? '';
+    this.editing.set(false);
+  }
+
   download() {
-    const d = this.doc()!;
-    this.api.binary(d.id, true).subscribe({
+    const current = this.doc()!;
+    this.api.binary(current.id, true).subscribe({
       next: (blob) => {
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = d.nombreArchivo;
-        a.click();
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = current.nombreArchivo;
+        anchor.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       },
-      error: (e) => this.dialog.error(e),
+      error: (error) => this.dialog.error(error),
     });
   }
+
+  retryOcr() {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.api.retryOcr(this.documentId).subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.doc.update((document) =>
+          document ? { ...document, ocrEstado: 'PENDIENTE', ocrError: null } : document,
+        );
+        this.loadDocument(false, false);
+      },
+      error: (error) => {
+        this.busy.set(false);
+        this.dialog.error(error);
+      },
+    });
+  }
+
   async saveText() {
+    if (this.busy() || !this.text.trim()) return;
     this.busy.set(true);
     if (
       !(await this.dialog.ask(
-        'Guardar transcripción',
-        'El texto se indexará y podrá encontrarse desde Explorar.',
+        'Guardar corrección',
+        'El texto corregido reemplazará el resultado automático y se actualizará en la búsqueda.',
       ))
     ) {
       this.busy.set(false);
       return;
     }
-    this.api.saveText(this.doc()!, this.text, this.auth.usuario()!.usuarioId).subscribe({
-      next: () => {
+    this.api.saveText(this.doc()!, this.text.trim(), this.auth.usuario()!.usuarioId).subscribe({
+      next: (document) => {
         this.busy.set(false);
-        this.dialog.info('Transcripción guardada', 'El texto ya está disponible para búsqueda.');
+        this.editing.set(false);
+        this.doc.set(document);
+        this.text = document.ocrTexto ?? '';
+        this.dialog.info(
+          'Corrección guardada',
+          'El texto actualizado ya está disponible para búsqueda.',
+        );
       },
-      error: (e) => {
+      error: (error) => {
         this.busy.set(false);
-        this.dialog.error(e);
+        this.dialog.error(error);
       },
     });
   }

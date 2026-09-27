@@ -62,10 +62,13 @@ import { PagerComponent } from '../../../shared/components/pager.component';
           <h3>Documentos del expediente</h3>
           @for (d of docs()?.contenido; track d.id) {
             <a
-              class="flex justify-between py-4 border-b border-[var(--line)]"
+              class="flex items-center justify-between gap-4 py-4 border-b border-[var(--line)]"
               [routerLink]="['/documentos', d.id]"
-              ><span>{{ d.nombreArchivo }}</span
-              ><span>Ver →</span></a
+              ><span class="min-w-0 break-all">{{ d.nombreArchivo }}</span
+              ><span class="flex items-center gap-4 shrink-0"
+                ><span class="badge" [class.warning]="ocrNeedsAttention(d)">{{ ocrLabel(d) }}</span
+                ><span>Ver →</span></span
+              ></a
             >
           }
           @if (!docs()?.totalElementos) {
@@ -133,5 +136,17 @@ export class ExpedienteDetailComponent implements OnInit {
     this.api
       .documents(this.id, page)
       .subscribe({ next: (r) => this.docs.set(r), error: (e) => this.dialog.error(e) });
+  }
+  ocrLabel(document: DigitalFile) {
+    return {
+      PENDIENTE: 'OCR pendiente',
+      PROCESANDO: 'Reconociendo texto',
+      COMPLETADO: document.ocrRevisado ? 'Texto revisado' : 'OCR listo',
+      REQUIERE_REVISION: 'Revisar OCR',
+      ERROR: 'OCR con error',
+    }[document.ocrEstado];
+  }
+  ocrNeedsAttention(document: DigitalFile) {
+    return ['REQUIERE_REVISION', 'ERROR'].includes(document.ocrEstado);
   }
 }
