@@ -72,7 +72,7 @@ export class AppShellComponent {
   }
   roleLabel() {
     const labels: Record<string, string> = {
-      ADMIN: 'Administrador',
+      ADMIN: 'Administrador del sistema',
       GESTOR_DOCUMENTAL: 'Gestor de documentos',
       LECTOR: 'Solo lectura',
     };

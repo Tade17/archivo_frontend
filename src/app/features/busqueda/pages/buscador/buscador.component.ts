@@ -8,6 +8,7 @@ import { DialogService } from '../../../../core/services/dialog.service';
 import { Catalogs, Page, RecordFile } from '../../../../core/models/archive.model';
 import { DocumentPreviewComponent } from '../../../../shared/components/document-preview.component';
 import { PagerComponent } from '../../../../shared/components/pager.component';
+import { saveBlob } from '../../../../shared/utils/save-blob';
 
 interface SearchFilters {
   texto: string;
@@ -40,13 +41,30 @@ interface SearchFilters {
           Encuentra, verifica y abre expedientes municipales desde un mismo lugar.
         </p>
         <form (ngSubmit)="search(0)" class="flex gap-2 max-w-[790px] mt-6">
-          <input
-            aria-label="Buscar en el archivo"
-            name="texto"
-            [(ngModel)]="filters.texto"
-            placeholder="Licencia de construcción…"
-            class="!border-[var(--brand)]"
-          /><button class="btn w-36" [disabled]="busy()">Buscar →</button>
+          <div class="relative flex-1">
+            <svg
+              class="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              aria-label="Buscar en el archivo"
+              name="texto"
+              [(ngModel)]="filters.texto"
+              placeholder="Licencia de construcción…"
+              class="!border-[var(--brand)] !pl-11"
+            />
+          </div>
+          <button class="btn w-36" [disabled]="busy()">Buscar →</button>
         </form>
         <div class="flex flex-wrap gap-3 mt-3 items-center max-w-[790px]">
           <select
@@ -92,29 +110,50 @@ interface SearchFilters {
       class="workspace grid lg:grid-cols-[minmax(240px,.85fr)_minmax(340px,1.65fr)_minmax(210px,.8fr)] gap-6 items-start"
     >
       <section>
-        <div class="flex items-baseline justify-between mb-5">
-          <h2 class="text-[var(--brand)]">
-            <span class="font-light text-3xl">{{ result()?.totalElementos ?? 0 }}</span>
-            <span class="text-xs">expedientes</span>
-          </h2>
+        <div class="flex items-end justify-between mb-5">
+          <div class="flex items-end gap-2 text-[var(--brand)]">
+            <span class="font-light text-4xl leading-none">{{ result()?.totalElementos ?? 0 }}</span>
+            <span class="leading-4"
+              ><strong class="block text-xs">expedientes</strong
+              ><small class="text-[var(--muted)]">ordenados por fecha</small></span
+            >
+          </div>
           <small class="text-[var(--muted)]">Recientes ↓</small>
         </div>
         @if (busy()) {
           <p class="empty" aria-live="polite">Consultando archivo…</p>
         }
-        @for (r of result()?.contenido; track r.id) {
+        @for (r of result()?.contenido; track r.id; let i = $index) {
           <button
-            class="block w-full text-left py-5 px-3 border-b border-[var(--line)] border-l-2"
-            [class]="
-              selected()?.id === r.id ? 'bg-white border-l-[var(--brand)]' : 'border-l-transparent'
-            "
+            class="flex gap-3 w-full text-left py-5 px-3 border-b border-[var(--line)]"
+            [class]="selected()?.id === r.id ? 'bg-white rounded-[5px] shadow-sm' : ''"
             (click)="selected.set(r)"
           >
-            <div class="text-[9px] text-[var(--muted)]">
-              <span>{{ r.codigoUnico }}</span>
-            </div>
-            <h3 class="!text-xs text-[var(--deep)] mt-2 leading-5">{{ r.asunto }}</h3>
-            <p class="text-[10px] text-[var(--muted)] mt-2">{{ r.areaDestinoNombre }}</p>
+            <span
+              class="w-8 h-8 shrink-0 rounded-[4px] flex items-center justify-center"
+              [class]="
+                selected()?.id === r.id
+                  ? 'bg-[#DDECF5] text-[var(--deep)] font-extrabold text-xs'
+                  : 'text-[var(--muted)] font-light text-base'
+              "
+              >{{ position(i) }}</span
+            >
+            <span class="min-w-0 flex-1">
+              <span
+                class="flex items-center justify-between gap-2 text-[9px] text-[var(--muted)]"
+              >
+                <span>{{ r.codigoUnico }}</span>
+                <span class="inline-flex items-center gap-1" [style.color]="statusColor(r.estadoNombre)"
+                  ><span
+                    class="w-1.5 h-1.5 rounded-full"
+                    [style.background]="statusColor(r.estadoNombre)"
+                  ></span
+                  >{{ r.estadoNombre }}</span
+                >
+              </span>
+              <h3 class="!text-xs text-[var(--deep)] mt-2 leading-5">{{ r.asunto }}</h3>
+              <p class="text-[10px] text-[var(--muted)] mt-2">{{ r.areaDestinoNombre }}</p>
+            </span>
           </button>
         }
         @if (!busy() && !result()?.contenido?.length) {
@@ -133,11 +172,31 @@ interface SearchFilters {
       </section>
       <section class="min-w-0">
         @if (selected(); as r) {
-          <div class="bg-white px-5 py-4 border-b border-[var(--line)]">
-            <p class="eyebrow">{{ r.codigoUnico }}</p>
-            <h2 class="mt-2 text-[var(--deep)]">{{ r.asunto }}</h2>
+          <div
+            class="bg-white px-5 py-4 border-b border-[var(--line)] flex flex-wrap items-start justify-between gap-3"
+          >
+            <div class="min-w-0">
+              <p class="eyebrow flex items-center gap-2">
+                {{ r.codigoUnico }}
+                <span class="inline-block w-4 h-0.5 bg-[var(--yellow)]"></span>
+                <span class="uppercase">{{ r.tipoNombre }}</span>
+              </p>
+              <h2 class="mt-2 text-[var(--deep)]">{{ r.asunto }}</h2>
+            </div>
+            <div class="flex items-center gap-4 text-xs shrink-0">
+              <span class="inline-flex items-center gap-1.5" [style.color]="statusColor(r.estadoNombre)"
+                ><span
+                  class="w-1.5 h-1.5 rounded-full"
+                  [style.background]="statusColor(r.estadoNombre)"
+                ></span
+                >{{ r.estadoNombre }}</span
+              >
+              @if (r.documentoId) {
+                <button class="text-button" (click)="download(r)">↓ Descargar</button>
+              }
+            </div>
           </div>
-          <app-document-preview [id]="r.documentoId" />
+          <app-document-preview [id]="r.documentoId" [name]="r.documentoNombre" />
         } @else {
           <div class="empty bg-[var(--soft)] min-h-[500px] flex flex-col justify-center">
             <h2>El archivo, a tu alcance</h2>
@@ -147,7 +206,12 @@ interface SearchFilters {
       </section>
       <aside class="bg-white px-5 py-6">
         @if (selected(); as r) {
-          <p class="eyebrow">FICHA RÁPIDA</p>
+          <div class="flex items-center justify-between gap-2">
+            <p class="eyebrow">FICHA RÁPIDA</p>
+            <small class="text-[var(--muted)]"
+              >Registrado · {{ r.fechaRegistro | date: 'dd/MM/yyyy' }}</small
+            >
+          </div>
           <dl class="data-list mt-4">
             <div>
               <dt>Área de destino</dt>
@@ -158,22 +222,33 @@ interface SearchFilters {
               <dd>{{ r.tipoNombre }}</dd>
             </div>
             <div>
+              <dt>Remitente</dt>
+              <dd>{{ r.remitente }}</dd>
+            </div>
+            <div>
               <dt>Archivo digital</dt>
-              <dd>{{ r.totalDocumentos }} documento(s)</dd>
+              <dd>
+                @if (r.documentoNombre) {
+                  <span class="text-[var(--brand)] font-semibold">{{ r.documentoNombre }}</span>
+                  @if (r.totalDocumentos > 1) {
+                    <span class="text-[var(--muted)]"> · +{{ r.totalDocumentos - 1 }} más</span>
+                  }
+                } @else {
+                  Sin documentos
+                }
+              </dd>
             </div>
             <div>
               <dt>Fecha del documento</dt>
               <dd>{{ r.fechaDocumento | date: 'dd/MM/yyyy' }}</dd>
             </div>
           </dl>
-          @if (r.documentoId) {
-            <a class="btn w-full mt-7" [routerLink]="['/documentos', r.documentoId]"
-              >Abrir documento ↗</a
-            >
-          }
-          <a class="btn secondary w-full mt-3" [routerLink]="['/expedientes', r.id]"
-            >Ficha completa →</a
-          >
+          <div class="flex items-center gap-4 mt-7">
+            @if (r.documentoId) {
+              <a class="btn" [routerLink]="['/documentos', r.documentoId]">Abrir documento ↗</a>
+            }
+            <a class="text-button" [routerLink]="['/expedientes', r.id]">Ficha completa →</a>
+          </div>
         } @else {
           <p class="text-xs text-[var(--muted)]">Los datos del expediente aparecerán aquí.</p>
         }
@@ -223,5 +298,26 @@ export class BuscadorComponent implements OnInit {
   clear() {
     this.filters = { texto: '', anio: '', areaDestinoId: '', tipoId: '' };
     this.search(0);
+  }
+  /** Número de orden del resultado dentro de toda la búsqueda (01, 02… continúa entre páginas). */
+  position(index: number): string {
+    const offset = (this.result()?.pagina ?? 0) * (this.result()?.tamano ?? 4);
+    return String(offset + index + 1).padStart(2, '0');
+  }
+  statusColor(estado: string): string {
+    const colors: Record<string, string> = {
+      Activo: '#237A57',
+      'En trámite': '#B7791F',
+      Registrado: '#194F9A',
+      Archivado: '#667482',
+    };
+    return colors[estado] ?? '#667482';
+  }
+  download(record: RecordFile) {
+    if (!record.documentoId) return;
+    this.api.binary(record.documentoId, true).subscribe({
+      next: (blob) => saveBlob(blob, record.documentoNombre ?? 'documento'),
+      error: (e) => this.dialog.error(e),
+    });
   }
 }

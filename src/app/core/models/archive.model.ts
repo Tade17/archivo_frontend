@@ -33,6 +33,7 @@ export interface RecordFile {
   fechaDocumento: string;
   fechaRegistro: string;
   documentoId: string | null;
+  documentoNombre: string | null;
   totalDocumentos: number;
 }
 export interface DigitalFile {
