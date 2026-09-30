@@ -48,10 +48,17 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
         @if (record(); as r) {
           <div class="flex justify-between gap-3">
             <div>
-              <strong class="text-[var(--deep)]">{{ r.codigoUnico }}</strong>
+              <div class="flex items-center gap-2">
+                <strong class="text-[var(--deep)]">{{ r.codigoUnico }}</strong>
+                <span class="badge neutral">{{ r.estadoNombre }}</span>
+              </div>
               <p class="text-xs mt-2">{{ r.asunto }}</p>
+              <p class="text-[10px] text-[var(--muted)] mt-2">
+                {{ r.areaDestinoNombre }} · {{ r.tipoNombre }} · {{ r.totalDocumentos }} documento(s) ya
+                cargado(s)
+              </p>
             </div>
-            <button class="text-button" [disabled]="busy()" (click)="record.set(null)">
+            <button class="text-button shrink-0" [disabled]="busy()" (click)="record.set(null)">
               Cambiar
             </button>
           </div>
@@ -166,8 +173,9 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
           <p class="text-xs mt-2" aria-live="polite">Cargando lote: {{ progress() }}%</p>
         }
         <div class="flex justify-between items-center mt-6 gap-4">
-          <p class="text-xs text-[var(--muted)]">
-            Confirma la legibilidad de cada archivo antes de guardar.
+          <p class="text-xs text-[var(--muted)] max-w-[420px]">
+            Confirma la legibilidad de cada archivo antes de guardar. Si alguno no se ve bien,
+            quítalo de la cola y vuelve a escanearlo con mejor resolución antes de subirlo.
           </p>
           <button class="btn" [disabled]="!ready() || busy()" (click)="upload()">
             Cargar documentos →
