@@ -40,12 +40,12 @@ interface SearchFilters {
         <p class="text-xs text-[var(--muted)] mt-1">
           Encuentra, verifica y abre expedientes municipales desde un mismo lugar.
         </p>
-        <form (ngSubmit)="search(0)" class="flex gap-2 max-w-[790px] mt-6">
+        <form (ngSubmit)="search(0)" class="flex gap-3 mt-6">
           <div class="relative flex-1">
             <svg
-              class="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none"
-              width="16"
-              height="16"
+              class="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--brand)] pointer-events-none"
+              width="20"
+              height="20"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -61,15 +61,19 @@ interface SearchFilters {
               name="texto"
               [(ngModel)]="filters.texto"
               placeholder="Licencia de construcción…"
-              class="!border-[var(--brand)] !pl-11"
+              class="!border-[var(--brand)] !pl-[52px] !py-4 !text-[15px] !rounded-[7px] shadow-sm"
             />
           </div>
-          <button class="btn w-36" [disabled]="busy()">Buscar →</button>
+          <button class="btn !px-8 !text-[14px]" [disabled]="busy()">Buscar →</button>
         </form>
-        <div class="flex flex-wrap gap-3 mt-3 items-center max-w-[790px]">
+        <div
+          class="flex flex-wrap gap-3 items-center mt-4 bg-[var(--soft)] border border-[var(--line)] rounded-[8px] px-4 py-3"
+        >
+          <span class="text-[11px] font-semibold text-[var(--deep)] tracking-[.04em]">FILTROS</span>
+          <span class="h-6 border-l border-[var(--line)]"></span>
           <select
             aria-label="Año"
-            class="!w-24 !p-1 !text-[10px]"
+            class="!w-auto !bg-white !py-2.5 !text-[13px] !rounded-[6px]"
             [(ngModel)]="filters.anio"
             (change)="search(0)"
           >
@@ -80,7 +84,7 @@ interface SearchFilters {
           </select>
           <select
             aria-label="Área de destino"
-            class="!w-36 !p-1 !text-[10px]"
+            class="!w-auto !bg-white !py-2.5 !text-[13px] !rounded-[6px]"
             [(ngModel)]="filters.areaDestinoId"
             (change)="search(0)"
           >
@@ -91,7 +95,7 @@ interface SearchFilters {
           </select>
           <select
             aria-label="Tipo documental"
-            class="!w-32 !p-1 !text-[10px]"
+            class="!w-auto !bg-white !py-2.5 !text-[13px] !rounded-[6px]"
             [(ngModel)]="filters.tipoId"
             (change)="search(0)"
           >
@@ -100,17 +104,21 @@ interface SearchFilters {
               <option [value]="t.id">{{ t.nombre }}</option>
             }
           </select>
-          <button type="button" class="text-button ml-auto" (click)="clear()">
+          <button
+            type="button"
+            class="text-button !text-[13px] whitespace-nowrap ml-auto"
+            (click)="clear()"
+          >
             Limpiar filtros
           </button>
         </div>
       </div>
     </section>
     <div
-      class="workspace grid lg:grid-cols-[minmax(240px,.85fr)_minmax(340px,1.65fr)_minmax(210px,.8fr)] gap-6 items-start"
+      class="workspace grid lg:grid-cols-[minmax(260px,.9fr)_minmax(340px,1.6fr)_minmax(270px,.95fr)] gap-6 items-start"
     >
-      <section>
-        <div class="flex items-end justify-between mb-5">
+      <section class="panel !p-0 overflow-hidden">
+        <div class="flex items-end justify-between px-5 pt-5 pb-4 border-b border-[var(--line)]">
           <div class="flex items-end gap-2 text-[var(--brand)]">
             <span class="font-light text-4xl leading-none">{{ result()?.totalElementos ?? 0 }}</span>
             <span class="leading-4"
@@ -123,76 +131,86 @@ interface SearchFilters {
         @if (busy()) {
           <p class="empty" aria-live="polite">Consultando archivo…</p>
         }
-        @for (r of result()?.contenido; track r.id; let i = $index) {
-          <button
-            class="flex gap-3 w-full text-left py-5 px-3 border-b border-[var(--line)]"
-            [class]="selected()?.id === r.id ? 'bg-white rounded-[5px] shadow-sm' : ''"
-            (click)="selected.set(r)"
-          >
-            <span
-              class="w-8 h-8 shrink-0 rounded-[4px] flex items-center justify-center"
+        <div class="px-3 py-2">
+          @for (r of result()?.contenido; track r.id; let i = $index) {
+            <button
+              class="flex gap-3 w-full text-left py-4 px-3 rounded-[6px] mb-1"
               [class]="
                 selected()?.id === r.id
-                  ? 'bg-[#DDECF5] text-[var(--deep)] font-extrabold text-xs'
-                  : 'text-[var(--muted)] font-light text-base'
+                  ? 'bg-[var(--soft)] ring-1 ring-inset ring-[var(--brand)]/30'
+                  : 'hover:bg-[var(--soft)]'
               "
-              >{{ position(i) }}</span
+              (click)="selected.set(r)"
             >
-            <span class="min-w-0 flex-1">
               <span
-                class="flex items-center justify-between gap-2 text-[9px] text-[var(--muted)]"
+                class="w-8 h-8 shrink-0 rounded-[4px] flex items-center justify-center"
+                [class]="
+                  selected()?.id === r.id
+                    ? 'bg-[var(--brand)] text-white font-extrabold text-xs'
+                    : 'bg-[var(--soft)] text-[var(--muted)] font-semibold text-xs'
+                "
+                >{{ position(i) }}</span
               >
-                <span>{{ r.codigoUnico }}</span>
-                <span class="inline-flex items-center gap-1" [style.color]="statusColor(r.estadoNombre)"
-                  ><span
-                    class="w-1.5 h-1.5 rounded-full"
-                    [style.background]="statusColor(r.estadoNombre)"
-                  ></span
-                  >{{ r.estadoNombre }}</span
+              <span class="min-w-0 flex-1">
+                <span
+                  class="flex items-center justify-between gap-2 text-[9px] text-[var(--muted)]"
                 >
+                  <span>{{ r.codigoUnico }}</span>
+                  <span class="inline-flex items-center gap-1" [style.color]="statusColor(r.estadoNombre)"
+                    ><span
+                      class="w-1.5 h-1.5 rounded-full"
+                      [style.background]="statusColor(r.estadoNombre)"
+                    ></span
+                    >{{ r.estadoNombre }}</span
+                  >
+                </span>
+                <h3 class="!text-xs text-[var(--deep)] mt-2 leading-5">{{ r.asunto }}</h3>
+                <p class="text-[10px] text-[var(--muted)] mt-2">{{ r.areaDestinoNombre }}</p>
               </span>
-              <h3 class="!text-xs text-[var(--deep)] mt-2 leading-5">{{ r.asunto }}</h3>
-              <p class="text-[10px] text-[var(--muted)] mt-2">{{ r.areaDestinoNombre }}</p>
-            </span>
-          </button>
-        }
-        @if (!busy() && !result()?.contenido?.length) {
-          <div class="empty">
-            <h2>Sin coincidencias</h2>
-            <p>Prueba otros términos o registra el primer expediente.</p>
-          </div>
-        }
-        <app-pager
-          [page]="result()?.pagina ?? 0"
-          [size]="4"
-          [total]="result()?.totalElementos ?? 0"
-          [busy]="busy()"
-          (changed)="search($event)"
-        />
+            </button>
+          }
+          @if (!busy() && !result()?.contenido?.length) {
+            <div class="empty">
+              <h2>Sin coincidencias</h2>
+              <p>Prueba otros términos o registra el primer expediente.</p>
+            </div>
+          }
+        </div>
+        <div class="px-5 pb-2">
+          <app-pager
+            [page]="result()?.pagina ?? 0"
+            [size]="4"
+            [total]="result()?.totalElementos ?? 0"
+            [busy]="busy()"
+            (changed)="search($event)"
+          />
+        </div>
       </section>
-      <section class="min-w-0">
+      <section class="min-w-0 panel !p-0 overflow-hidden">
         @if (selected(); as r) {
           <div
-            class="bg-white px-5 py-4 border-b border-[var(--line)] flex flex-wrap items-start justify-between gap-3"
+            class="bg-[var(--deep)] text-white px-5 py-4 flex flex-wrap items-start justify-between gap-3"
           >
             <div class="min-w-0">
-              <p class="eyebrow flex items-center gap-2">
+              <p class="flex items-center gap-2 text-[10px] tracking-[.1em] text-[#B9CDE6]">
                 {{ r.codigoUnico }}
                 <span class="inline-block w-4 h-0.5 bg-[var(--yellow)]"></span>
                 <span class="uppercase">{{ r.tipoNombre }}</span>
               </p>
-              <h2 class="mt-2 text-[var(--deep)]">{{ r.asunto }}</h2>
+              <h2 class="mt-2 !text-white">{{ r.asunto }}</h2>
             </div>
             <div class="flex items-center gap-4 text-xs shrink-0">
-              <span class="inline-flex items-center gap-1.5" [style.color]="statusColor(r.estadoNombre)"
-                ><span
-                  class="w-1.5 h-1.5 rounded-full"
-                  [style.background]="statusColor(r.estadoNombre)"
-                ></span
+              <span class="inline-flex items-center gap-1.5 text-[#B9CDE6]"
+                ><span class="w-1.5 h-1.5 rounded-full bg-current"></span
                 >{{ r.estadoNombre }}</span
               >
               @if (r.documentoId) {
-                <button class="text-button" (click)="download(r)">↓ Descargar</button>
+                <button
+                  class="text-button !text-white underline underline-offset-2"
+                  (click)="download(r)"
+                >
+                  ↓ Descargar
+                </button>
               }
             </div>
           </div>
@@ -204,14 +222,12 @@ interface SearchFilters {
           </div>
         }
       </section>
-      <aside class="bg-white px-5 py-6">
+      <aside class="panel">
         @if (selected(); as r) {
-          <div class="flex items-center justify-between gap-2">
-            <p class="eyebrow">FICHA RÁPIDA</p>
-            <small class="text-[var(--muted)]"
-              >Registrado · {{ r.fechaRegistro | date: 'dd/MM/yyyy' }}</small
-            >
-          </div>
+          <p class="eyebrow">FICHA RÁPIDA</p>
+          <p class="text-[11px] text-[var(--muted)] mt-1">
+            Registrado · {{ r.fechaRegistro | date: 'dd/MM/yyyy' }}
+          </p>
           <dl class="data-list mt-4">
             <div>
               <dt>Área de destino</dt>
