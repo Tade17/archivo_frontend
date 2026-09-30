@@ -1,130 +1,152 @@
-import { Component, inject, signal, viewChild, OnDestroy, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import {
+  Component,
+  inject,
+  signal,
+  viewChild,
+  OnDestroy,
+  OnInit,
+  HostListener,
+} from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ArchiveApi } from '../../../../core/services/archive-api.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { DialogService } from '../../../../core/services/dialog.service';
-import { DigitalFile, RecordFile } from '../../../../core/models/archive.model';
+import { DigitalFile, OcrLayout, OcrPage, OcrBlock } from '../../../../core/models/archive.model';
 import { DocumentPreviewComponent } from '../../../../shared/components/document-preview.component';
 import { DocumentSearchComponent } from '../../../../shared/components/document-search.component';
 import { saveBlob } from '../../../../shared/utils/save-blob';
 @Component({
   selector: 'app-documento-detalle',
-  imports: [FormsModule, RouterLink, DocumentPreviewComponent, DocumentSearchComponent],
-  template: ` <div class="page-heading">
+  imports: [RouterLink, DocumentPreviewComponent, DocumentSearchComponent],
+  template: `
+    <div class="page-heading">
       <div>
-        <h1>Documento <strong>digital</strong></h1>
-        <p>Consulta el archivo y su texto reconocido automáticamente.</p>
+        <h1>Documento <strong>digitalizado</strong></h1>
+        <p>Selecciona, copia y busca texto en el PDF. Corrige un fragmento cuando lo necesites.</p>
       </div>
       @if (doc(); as d) {
-        <div class="rounded-[5px] bg-[var(--soft)] border border-[#cfe0ec] px-4 py-3 max-w-[340px]">
-          <p class="eyebrow !text-[9px]">{{ d.expedienteCodigoUnico }} · DOCUMENTO</p>
-          <p class="text-xs font-bold text-[var(--deep)] mt-1 break-words">
-            {{ d.nombreArchivo }}@if (viewer()?.pages()) {
-              · {{ viewer()?.pages() }} {{ viewer()?.pages() === 1 ? 'página' : 'páginas' }}
-            }
-          </p>
-        </div>
+        <a class="btn secondary" [routerLink]="['/expedientes', d.expedienteId]"
+          >Volver al expediente</a
+        >
       }
     </div>
     @if (doc(); as d) {
-      <div class="workspace grid lg:grid-cols-[220px_minmax(300px,1fr)_320px] gap-6 items-start">
-        <aside class="panel">
-          <p class="eyebrow">CONTENIDO DEL EXPEDIENTE</p>
-          <h3 class="mt-5 break-words">{{ d.nombreArchivo }}</h3>
-          <dl class="data-list mt-4">
-            <div>
-              <dt>Tipo documental</dt>
-              <dd>{{ record()?.tipoNombre }}</dd>
-            </div>
-            <div>
-              <dt>Área de destino</dt>
-              <dd>{{ record()?.areaDestinoNombre }}</dd>
-            </div>
-            <div>
-              <dt>Formato de archivo</dt>
-              <dd>{{ d.tipoMime }}</dd>
-            </div>
-            <div>
-              <dt>Hash SHA-256 registrado</dt>
-              <dd class="!text-[9px]">{{ d.hashSha256 }}</dd>
-            </div>
-          </dl>
-          <a class="text-button block mt-6" [routerLink]="['/expedientes', d.expedienteId]"
-            >← Ficha completa</a
-          >
-        </aside>
+      <div class="workspace grid xl:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
         <section class="min-w-0">
-          <app-document-preview [id]="d.id" [name]="d.nombreArchivo" />
-        </section>
-        <aside class="min-w-0">
-          @if (viewer(); as v) {
-            <app-document-search [viewer]="v" />
+          @if (correcting()) {
+            <div class="bg-[#EAF3F9] px-5 py-4 text-sm text-[var(--deep)] mb-4" role="status">
+              Selecciona un recuadro sobre la página para corregir su texto. La revisión es
+              opcional.
+            </div>
           }
-          <div class="panel mt-4">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <h3>Texto reconocido</h3>
+          <div class="overflow-hidden rounded-[6px] border border-[var(--line)] bg-white">
+            <app-document-preview
+              [id]="d.id"
+              [name]="displayName(d)"
+              [revision]="d.ocrActualizadoEn"
+              [layout]="draft()"
+              [correcting]="correcting()"
+              [selectedBlock]="selectedId()"
+              [selectedPage]="selectedPage"
+              [editingDisabled]="busy()"
+              (blockChosen)="chooseBlock($event)"
+              (blockEdited)="editBlock($event)"
+            />
+          </div>
+        </section>
+        <aside class="min-w-0 xl:sticky xl:top-5 space-y-5">
+          <section class="panel">
+            <h2 class="!text-[18px]">
+              {{ d.pdfDisponible ? 'PDF con texto' : 'Generación del PDF' }}
+            </h2>
             <span
-              class="badge"
-              [class.neutral]="['PENDIENTE', 'PROCESANDO'].includes(d.ocrEstado)"
+              class="badge mt-3"
               [class.warning]="['REQUIERE_REVISION', 'ERROR'].includes(d.ocrEstado)"
+              [class.neutral]="processing(d)"
               >{{ statusLabel(d) }}</span
             >
-          </div>
-          <p class="text-xs text-[var(--muted)] leading-6 mt-3" aria-live="polite">
-            {{ statusMessage(d) }}
-          </p>
-          @if (d.ocrConfianza !== null) {
-            <p class="text-[10px] text-[var(--muted)] mt-2">
-              Confianza estimada: {{ confidencePercent(d) }}% · {{ d.ocrPaginas ?? 1 }} página(s)
+            <p class="text-xs leading-6 text-[var(--muted)] mt-3" aria-live="polite">
+              {{ statusMessage(d) }}
             </p>
-          }
-          @if (!['PENDIENTE', 'PROCESANDO'].includes(d.ocrEstado)) {
-            @if (editing()) {
-              <label class="mt-5"
-                >Corregir texto reconocido<textarea
-                  rows="16"
-                  maxlength="2000000"
-                  [(ngModel)]="text"
-                ></textarea>
-              </label>
-              <div class="flex flex-wrap gap-3 mt-4">
-                <button class="btn" [disabled]="busy() || !text.trim()" (click)="saveText()">
-                  {{ busy() ? 'Guardando…' : 'Guardar corrección' }}
-                </button>
-                <button class="btn secondary" [disabled]="busy()" (click)="cancelEdit()">
-                  Cancelar
-                </button>
-              </div>
-            } @else {
-              <p
-                class="mt-5 max-h-[520px] overflow-auto text-xs whitespace-pre-wrap break-words leading-6"
-              >
-                {{ d.ocrTexto || 'No se detectó texto en este documento.' }}
+            @if (d.ocrConfianza !== null) {
+              <p class="text-xs text-[var(--muted)] mt-2">
+                Confianza estimada: {{ confidencePercent(d) }}%
               </p>
-              @if (auth.can('GESTOR_DOCUMENTAL')) {
-                <div class="flex flex-wrap gap-3 mt-5">
-                  <button class="btn secondary" (click)="startEdit()">Corregir texto</button>
-                  @if (d.ocrEstado === 'ERROR') {
-                    <button class="btn" [disabled]="busy()" (click)="retryOcr()">
-                      {{ busy() ? 'Reintentando…' : 'Reintentar OCR' }}
-                    </button>
-                  }
-                </div>
+            }
+            @if (d.pdfDisponible) {
+              <button
+                class="btn w-full mt-5"
+                [disabled]="busy() || dirty()"
+                (click)="downloadPdf()"
+              >
+                Descargar PDF con texto
+              </button>
+            }
+            @if (auth.can('GESTOR_DOCUMENTAL') && d.pdfDisponible && draft().length) {
+              <button
+                class="btn secondary w-full mt-3"
+                [disabled]="busy()"
+                (click)="toggleCorrection()"
+              >
+                {{ correcting() ? 'Cerrar corrección' : 'Corregir texto en la página' }}
+              </button>
+              @if (correcting()) {
+                <p class="text-xs leading-5 mt-4" aria-live="polite">
+                  {{
+                    dirty() ? 'Hay cambios sin guardar.' : 'Selecciona un fragmento del documento.'
+                  }}
+                </p>
+                <button
+                  class="btn w-full mt-3"
+                  [disabled]="busy() || !dirty()"
+                  (click)="saveCorrections()"
+                >
+                  {{ busy() ? 'Actualizando PDF…' : 'Guardar PDF y búsqueda' }}
+                </button>
+                <button
+                  class="btn secondary w-full mt-3"
+                  [disabled]="busy() || !dirty()"
+                  (click)="resetCorrections()"
+                >
+                  Deshacer cambios
+                </button>
               }
             }
+            @if (
+              auth.can('GESTOR_DOCUMENTAL') && !d.pdfDisponible && !processing(d) && !d.ocrRevisado
+            ) {
+              <button class="btn secondary w-full mt-4" [disabled]="busy()" (click)="retryOcr()">
+                {{ busy() ? 'Preparando…' : 'Generar PDF con OCR' }}
+              </button>
+            }
+            <p class="text-[11px] leading-5 text-[var(--muted)] mt-4">
+              El PDF conserva la apariencia del escaneo. Las correcciones actualizan su texto
+              seleccionable y el buscador.
+            </p>
+          </section>
+          @if (viewer(); as v) {
+            @if (v.pages()) {
+              <app-document-search [viewer]="v" />
+            }
           }
-          <p class="mt-6 text-[10px] leading-5 text-[var(--muted)]">
-            El texto se incorpora automáticamente a la búsqueda. Las consultas y descargas quedan
-            registradas en la bitácora.
-          </p>
-          </div>
-          <button class="btn w-full mt-4" (click)="download()">↓ Descargar copia</button>
+          <details class="panel">
+            <summary class="cursor-pointer font-semibold">Transcripción y archivo original</summary>
+            <p class="mt-4 text-xs leading-6 whitespace-pre-wrap max-h-[360px] overflow-auto">
+              {{ d.ocrTexto || 'El texto estará disponible cuando termine el OCR.' }}
+            </p>
+            <button class="btn secondary w-full mt-4" (click)="downloadOriginal()">
+              Descargar original
+            </button>
+            <p class="mt-3 text-[10px] break-all text-[var(--muted)]">
+              SHA-256: {{ d.hashSha256 }}
+            </p>
+          </details>
         </aside>
       </div>
     } @else {
       <div class="empty">Abriendo documento…</div>
-    }`,
+    }
+  `,
 })
 export class DocumentoDetalleComponent implements OnInit, OnDestroy {
   api = inject(ArchiveApi);
@@ -133,137 +155,163 @@ export class DocumentoDetalleComponent implements OnInit, OnDestroy {
   route = inject(ActivatedRoute);
   viewer = viewChild(DocumentPreviewComponent);
   doc = signal<DigitalFile | null>(null);
-  record = signal<RecordFile | null>(null);
+  draft = signal<OcrPage[]>([]);
   busy = signal(false);
-  editing = signal(false);
-  text = '';
+  dirty = signal(false);
+  correcting = signal(false);
+  selectedId = signal<string | null>(null);
+  selectedPage = -1;
+  private savedLayout: OcrLayout | null = null;
   private documentId = this.route.snapshot.paramMap.get('id')!;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
-
   ngOnInit() {
-    this.loadDocument(true, true);
+    this.loadDocument();
   }
-
   ngOnDestroy() {
     if (this.pollTimer) clearTimeout(this.pollTimer);
   }
-
-  private loadDocument(showError: boolean, loadRecord: boolean) {
+  @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent) {
+    if (this.dirty()) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  }
+  hasUnsavedChanges() {
+    return this.dirty();
+  }
+  private loadDocument() {
     this.api.document(this.documentId).subscribe({
       next: (document) => {
         this.doc.set(document);
-        if (!this.editing()) this.text = document.ocrTexto ?? '';
-        if (loadRecord) {
-          this.api.record(document.expedienteId).subscribe({
-            next: (record) => this.record.set(record),
-            error: (error) => this.dialog.error(error),
-          });
-        }
-        this.schedulePoll(document);
+        if (document.pdfDisponible && !this.dirty()) this.loadLayout();
+        if (this.pollTimer) clearTimeout(this.pollTimer);
+        if (this.processing(document)) this.pollTimer = setTimeout(() => this.loadDocument(), 2500);
       },
-      error: (error) => {
-        if (showError) this.dialog.error(error);
-      },
+      error: (error) => this.dialog.error(error),
     });
   }
-
-  private schedulePoll(document: DigitalFile) {
-    if (this.pollTimer) clearTimeout(this.pollTimer);
-    if (!['PENDIENTE', 'PROCESANDO'].includes(document.ocrEstado)) return;
-    this.pollTimer = setTimeout(() => this.loadDocument(false, false), 2500);
+  private loadLayout() {
+    this.api.ocrLayout(this.documentId).subscribe({
+      next: (value) => {
+        this.savedLayout = value;
+        this.draft.set(structuredClone(value.layout));
+      },
+      error: (error) => this.dialog.error(error),
+    });
   }
-
-  statusLabel(document: DigitalFile) {
+  processing(d: DigitalFile) {
+    return ['PENDIENTE', 'PROCESANDO'].includes(d.ocrEstado);
+  }
+  displayName(d: DigitalFile) {
+    return d.pdfDisponible ? d.nombreArchivo.replace(/\.[^.]+$/, '') + '.pdf' : d.nombreArchivo;
+  }
+  statusLabel(d: DigitalFile) {
     return {
-      PENDIENTE: 'OCR pendiente',
+      PENDIENTE: 'En cola',
       PROCESANDO: 'Reconociendo texto',
-      COMPLETADO: document.ocrRevisado ? 'Texto revisado' : 'OCR listo',
-      REQUIERE_REVISION: 'Revisión recomendada',
-      ERROR: 'No se pudo procesar',
-    }[document.ocrEstado];
+      COMPLETADO: d.ocrRevisado ? 'Texto corregido' : 'Disponible',
+      REQUIERE_REVISION: 'Disponible · baja confianza',
+      ERROR: 'Error de procesamiento',
+    }[d.ocrEstado];
   }
-
-  statusMessage(document: DigitalFile) {
-    return {
-      PENDIENTE: 'El documento está en cola. Puedes seguir trabajando mientras se procesa.',
-      PROCESANDO:
-        'El sistema está leyendo el documento. Esta vista se actualizará automáticamente.',
-      COMPLETADO: document.ocrRevisado
-        ? 'Una persona revisó el texto y guardó sus correcciones.'
-        : 'El texto está disponible para consulta y búsqueda.',
-      REQUIERE_REVISION:
-        'El resultado tiene baja confianza o no contiene texto suficiente. Conviene revisarlo.',
-      ERROR:
-        document.ocrError || 'El servicio OCR no pudo procesar el archivo. Puedes reintentarlo.',
-    }[document.ocrEstado];
+  statusMessage(d: DigitalFile) {
+    if (this.processing(d)) return 'El PDF se genera automáticamente. Puedes seguir trabajando.';
+    if (d.ocrEstado === 'ERROR')
+      return d.ocrError || 'No se pudo generar el PDF. Puedes reintentarlo.';
+    if (!d.pdfDisponible && d.ocrRevisado)
+      return 'La transcripción anterior corregida se conserva. Su conversión a PDF necesita vincular esas correcciones con los fragmentos de la página; no se reprocesa para evitar perderlas.';
+    if (!d.pdfDisponible)
+      return 'Este archivo aún no tiene PDF con texto. Puedes generarlo sin volver a subirlo.';
+    if (d.ocrEstado === 'REQUIERE_REVISION')
+      return 'Puedes consultar el PDF. Corrige los fragmentos que encuentres incorrectos; la revisión es opcional.';
+    return 'El contenido ya está disponible para selección, copia y búsqueda.';
   }
-
-  confidencePercent(document: DigitalFile) {
-    return Math.round((document.ocrConfianza ?? 0) * 100);
+  confidencePercent(d: DigitalFile) {
+    return Math.round((d.ocrConfianza ?? 0) * 100);
   }
-
-  startEdit() {
-    this.text = this.doc()?.ocrTexto ?? '';
-    this.editing.set(true);
+  chooseBlock(value: { page: number; block: OcrBlock }) {
+    this.selectedPage = value.page;
+    this.selectedId.set(value.block.id);
   }
-
-  cancelEdit() {
-    this.text = this.doc()?.ocrTexto ?? '';
-    this.editing.set(false);
+  editBlock(text: string) {
+    if (this.busy()) return;
+    this.draft.update((pages) =>
+      pages.map((page, i) =>
+        i !== this.selectedPage
+          ? page
+          : {
+              ...page,
+              blocks: page.blocks.map((block) =>
+                block.id === this.selectedId() ? { ...block, text } : block,
+              ),
+            },
+      ),
+    );
+    this.dirty.set(JSON.stringify(this.draft()) !== JSON.stringify(this.savedLayout?.layout));
   }
-
-  download() {
-    const d = this.doc()!;
-    this.api.binary(d.id, true).subscribe({
-      next: (blob) => saveBlob(blob, d.nombreArchivo),
+  toggleCorrection() {
+    if (this.dirty()) {
+      this.dialog.info(
+        'Cambios pendientes',
+        'Guarda o deshaz los cambios antes de cerrar la corrección.',
+      );
+      return;
+    }
+    this.correcting.update((v) => !v);
+    this.selectedId.set(null);
+  }
+  resetCorrections() {
+    this.draft.set(structuredClone(this.savedLayout?.layout ?? []));
+    this.dirty.set(false);
+    this.selectedId.set(null);
+  }
+  saveCorrections() {
+    if (this.busy() || !this.dirty() || !this.savedLayout) return;
+    this.busy.set(true);
+    this.api
+      .saveLayout(this.documentId, { layout: this.draft(), version: this.savedLayout.version })
+      .subscribe({
+        next: (document) => {
+          this.busy.set(false);
+          this.dirty.set(false);
+          this.correcting.set(false);
+          this.selectedId.set(null);
+          this.doc.set(document);
+          this.loadLayout();
+          this.dialog.info(
+            'PDF actualizado',
+            'El texto corregido ya está disponible en el PDF y en el buscador.',
+          );
+        },
+        error: (error) => {
+          this.busy.set(false);
+          this.dialog.error(error);
+        },
+      });
+  }
+  downloadPdf() {
+    this.api.pdf(this.documentId).subscribe({
+      next: (blob) => saveBlob(blob, this.displayName(this.doc()!)),
       error: (e) => this.dialog.error(e),
     });
   }
-
+  downloadOriginal() {
+    this.api.binary(this.documentId, true).subscribe({
+      next: (blob) => saveBlob(blob, this.doc()!.nombreArchivo),
+      error: (e) => this.dialog.error(e),
+    });
+  }
   retryOcr() {
     if (this.busy()) return;
     this.busy.set(true);
     this.api.retryOcr(this.documentId).subscribe({
       next: () => {
         this.busy.set(false);
-        this.doc.update((document) =>
-          document ? { ...document, ocrEstado: 'PENDIENTE', ocrError: null } : document,
-        );
-        this.loadDocument(false, false);
+        this.loadDocument();
       },
-      error: (error) => {
+      error: (e) => {
         this.busy.set(false);
-        this.dialog.error(error);
-      },
-    });
-  }
-
-  async saveText() {
-    if (this.busy() || !this.text.trim()) return;
-    this.busy.set(true);
-    if (
-      !(await this.dialog.ask(
-        'Guardar corrección',
-        'El texto corregido reemplazará el resultado automático y se actualizará en la búsqueda.',
-      ))
-    ) {
-      this.busy.set(false);
-      return;
-    }
-    this.api.saveText(this.doc()!, this.text.trim(), this.auth.usuario()!.usuarioId).subscribe({
-      next: (document) => {
-        this.busy.set(false);
-        this.editing.set(false);
-        this.doc.set(document);
-        this.text = document.ocrTexto ?? '';
-        this.dialog.info(
-          'Corrección guardada',
-          'El texto actualizado ya está disponible para búsqueda.',
-        );
-      },
-      error: (error) => {
-        this.busy.set(false);
-        this.dialog.error(error);
+        this.dialog.error(e);
       },
     });
   }

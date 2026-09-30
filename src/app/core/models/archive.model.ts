@@ -37,6 +37,7 @@ export interface RecordFile {
   totalDocumentos: number;
 }
 export interface DigitalFile {
+  pdfDisponible: boolean;
   id: string;
   expedienteId: string;
   expedienteCodigoUnico: string;
@@ -56,6 +57,24 @@ export interface DigitalFile {
   ocrIntentos: number;
   ocrRevisado: boolean;
   ocrActualizadoEn: string | null;
+}
+export interface OcrBlock {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  confidence: number;
+}
+export interface OcrPage {
+  width: number;
+  height: number;
+  blocks: OcrBlock[];
+}
+export interface OcrLayout {
+  layout: OcrPage[];
+  version: number;
 }
 export interface User {
   id: string;

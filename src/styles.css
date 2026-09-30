@@ -8,6 +8,13 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+.pdf-page .textLayer{position:absolute;inset:0;overflow:clip;line-height:1;text-align:initial;transform-origin:0 0;--min-font-size:1;--text-scale-factor:calc(var(--total-scale-factor) * var(--min-font-size));--min-font-size-inv:calc(1 / var(--min-font-size))}
+.pdf-page .textLayer :is(span,br){color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0 0;user-select:text}
+.pdf-page .textLayer > :not(.markedContent),.pdf-page .textLayer .markedContent span:not(.markedContent){--font-height:0;font-size:calc(var(--text-scale-factor) * var(--font-height));--scale-x:1;--rotate:0deg;transform:rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv))}
+.pdf-page .textLayer .markedContent{display:contents}
+.pdf-page .textLayer ::selection{background:#194f9a55;color:transparent}
+.pdf-page .ocr-block{position:absolute;border:1px solid #194f9a66;background:#194f9a0a;border-radius:2px;padding:0;min-height:10px}
+.pdf-page .ocr-block:hover,.pdf-page .ocr-block.active{border-color:var(--brand);background:#194f9a33}
 @layer base {
 :root{--canvas:#F4F7FA;--surface:#fff;--muted:#667482;--ink:#172B3A;--brand:#194F9A;--deep:#13387A;--line:#D8E2EA;--soft:#EAF1F6;--green:#237A57;--yellow:#F3CC58;--error:#A2372E;--focus-ring:#194F9A33;font-family:Inter,sans-serif;color:var(--ink);background:var(--canvas);font-size:13px;}
 *{box-sizing:border-box}body{margin:0;min-width:360px}button,input,select,textarea{font:inherit}button,a,input,select,textarea{outline-offset:4px}button:focus-visible,a:focus-visible{outline:3px solid var(--yellow)}button{border:0;background:transparent;cursor:pointer}button:disabled{cursor:not-allowed}input,select,textarea{width:100%;background:white;border:1px solid var(--line);border-radius:5px;padding:11px 12px;color:var(--ink);transition:border-color 160ms ease,box-shadow 160ms ease,background-color 160ms ease}input[type=checkbox]{width:auto}input:focus,select:focus,textarea:focus{outline:0;border-color:var(--brand);box-shadow:0 0 0 3px var(--focus-ring)}label{display:block;font-size:11px;color:var(--muted)}label>input,label>select,label>textarea{margin-top:7px}h1,h2,h3{font-family:Manrope,sans-serif}h2{font-size:20px;font-weight:800;line-height:1.35}h3{font-size:16px;font-weight:700}table{width:100%;text-align:left;border-collapse:collapse}th{font-size:10px;letter-spacing:.08em;color:var(--muted);font-weight:500;background:var(--soft)}th,td{padding:17px 15px;border-bottom:1px solid var(--line)}tr.selectable{cursor:pointer}tr.selectable:hover,tr.selected{background:#e8f2f7}a{color:var(--brand)}small{font-size:11px}

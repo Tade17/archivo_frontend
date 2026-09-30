@@ -1,7 +1,15 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
-import { Page, RecordFile, DigitalFile, Catalogs, User, AuditEvent } from '../models/archive.model';
+import {
+  Page,
+  RecordFile,
+  DigitalFile,
+  Catalogs,
+  User,
+  AuditEvent,
+  OcrLayout,
+} from '../models/archive.model';
 @Injectable({ providedIn: 'root' })
 export class ArchiveApi {
   private http = inject(HttpClient);
@@ -67,6 +75,20 @@ export class ArchiveApi {
   }
   retryOcr(id: string) {
     return this.http.post<void>(this.base + '/documentos-digitales/' + id + '/ocr/reintentar', {});
+  }
+  ocrLayout(id: string) {
+    return this.http.get<OcrLayout>(this.base + '/documentos-digitales/' + id + '/ocr/layout');
+  }
+  saveLayout(id: string, body: OcrLayout) {
+    return this.http.put<DigitalFile>(
+      this.base + '/documentos-digitales/' + id + '/ocr/layout',
+      body,
+    );
+  }
+  pdf(id: string) {
+    return this.http.get(this.base + '/documentos-digitales/' + id + '/pdf', {
+      responseType: 'blob',
+    });
   }
   users(page = 0) {
     return this.http.get<Page<User>>(this.base + '/usuarios', { params: { page, size: 10 } });

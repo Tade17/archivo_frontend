@@ -5,6 +5,7 @@ import {
   effect,
   inject,
   input,
+  output,
   signal,
   untracked,
   viewChild,
@@ -12,6 +13,7 @@ import {
 import { ArchiveApi } from '../../core/services/archive-api.service';
 import { DialogService } from '../../core/services/dialog.service';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
+import type { OcrPage, OcrBlock } from '../../core/models/archive.model';
 
 /** Fragmento de texto de una página tal como lo entrega pdf.js. */
 interface PdfTextItem {
@@ -57,7 +59,9 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
         class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-4 py-3 bg-white"
       >
         @if (name(); as fileName) {
-          <span class="inline-flex items-center gap-2 min-w-0 text-xs font-semibold text-[var(--deep)]">
+          <span
+            class="inline-flex items-center gap-2 min-w-0 text-xs font-semibold text-[var(--deep)]"
+          >
             <span
               class="rounded-[3px] text-white text-[8px] font-bold px-1.5 py-1 leading-none"
               [class]="extension(fileName) === 'PDF' ? 'bg-[#E53935]' : 'bg-[var(--brand)]'"
@@ -66,7 +70,9 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
             <span class="truncate">{{ fileName }}</span>
           </span>
         } @else {
-          <span class="text-xs text-[var(--muted)]">{{ loading() ? 'Abriendo documento…' : '' }}</span>
+          <span class="text-xs text-[var(--muted)]">{{
+            loading() ? 'Abriendo documento…' : ''
+          }}</span>
         }
         <div class="flex items-center gap-2">
           <span class="text-xs text-[var(--muted)] mr-1">{{
@@ -82,7 +88,7 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
             class="icon-button"
             aria-label="Girar página"
             (click)="rotate()"
-            [disabled]="!pdf"
+            [disabled]="!pdf || correcting()"
           >
             ↻
           </button>
@@ -96,12 +102,60 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
         @if (message()) {
           <p class="empty">{{ message() }}</p>
         }
-        <canvas
-          #canvas
+        <div
+          class="pdf-page mx-auto relative shadow-md"
           [class.hidden]="!pdf"
-          class="mx-auto shadow-md max-w-full"
-          aria-label="Página del documento"
-        ></canvas>
+          [style.width.px]="renderWidth()"
+          [style.height.px]="renderHeight()"
+        >
+          <canvas
+            #canvas
+            [class.hidden]="!pdf"
+            class="block"
+            aria-label="Página del documento"
+          ></canvas>
+          <div #textLayer class="textLayer" [class.hidden]="correcting()"></div>
+          @if (correcting()) {
+            @for (block of currentBlocks(); track block.id) {
+              <button
+                class="ocr-block"
+                [class.active]="selectedPage() === page() - 1 && selectedBlock() === block.id"
+                [disabled]="editingDisabled()"
+                [style.left.%]="(block.x / currentLayout()!.width) * 100"
+                [style.top.%]="(block.y / currentLayout()!.height) * 100"
+                [style.width.%]="(block.width / currentLayout()!.width) * 100"
+                [style.height.%]="(block.height / currentLayout()!.height) * 100"
+                [attr.aria-label]="'Corregir: ' + block.text"
+                [title]="block.text"
+                (click)="blockChosen.emit({ page: page() - 1, block })"
+              ></button>
+            }
+            @if (activeBlock(); as block) {
+              <div
+                class="absolute z-10 bg-white border border-[var(--brand)] rounded p-3 text-left shadow-lg"
+                [style.top.%]="
+                  Math.min(85, ((block.y + block.height) / currentLayout()!.height) * 100)
+                "
+                [style.left.px]="0"
+                [style.width.px]="Math.min(renderWidth(), 460)"
+              >
+                <label for="page-ocr-correction">Corregir fragmento de esta página</label>
+                <textarea
+                  id="page-ocr-correction"
+                  rows="3"
+                  maxlength="10000"
+                  [disabled]="editingDisabled()"
+                  [value]="block.text"
+                  (input)="blockEdited.emit($any($event.target).value)"
+                  aria-describedby="correction-help"
+                ></textarea>
+                <p id="correction-help" class="text-xs text-[var(--muted)] mt-2">
+                  Guarda los cambios para actualizar el PDF y el buscador.
+                </p>
+              </div>
+            }
+          }
+        </div>
         @if (imageUrl()) {
           <img
             [src]="imageUrl()"
@@ -135,6 +189,19 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
   `,
 })
 export class DocumentPreviewComponent implements OnDestroy {
+  layout = input<OcrPage[]>([]);
+  correcting = input(false);
+  selectedBlock = input<string | null>(null);
+  selectedPage = input(-1);
+  editingDisabled = input(false);
+  revision = input<string | null>(null);
+  blockChosen = output<{ page: number; block: OcrBlock }>();
+  blockEdited = output<string>();
+  Math = Math;
+  renderWidth = signal(0);
+  renderHeight = signal(0);
+  textLayer = viewChild<ElementRef<HTMLElement>>('textLayer');
+  private textRendering: import('pdfjs-dist').TextLayer | null = null;
   id = input<string | null>(null);
   name = input<string | null>(null);
   canvas = viewChild<ElementRef<HTMLCanvasElement>>('canvas');
@@ -168,14 +235,33 @@ export class DocumentPreviewComponent implements OnDestroy {
     // volvía a disparar este efecto y el documento se pedía en bucle.
     effect(() => {
       const id = this.id();
+      this.revision();
       const canvas = this.canvas();
       if (canvas) untracked(() => void this.open(id));
     });
+    effect(() => {
+      if (this.correcting()) {
+        this.rotation = 0;
+        untracked(() => void this.render());
+      }
+    });
+  }
+
+  currentLayout() {
+    return this.layout()[this.page() - 1];
+  }
+  currentBlocks() {
+    return this.currentLayout()?.blocks ?? [];
+  }
+  activeBlock() {
+    if (this.selectedPage() !== this.page() - 1) return undefined;
+    return this.currentBlocks().find((b) => b.id === this.selectedBlock());
   }
 
   private async open(id: string | null) {
     const serial = ++this.serial;
     this.rendering?.cancel();
+    this.textRendering?.cancel();
     void this.pdf?.cleanup();
     this.pdf = null;
     if (this.imageUrl()) URL.revokeObjectURL(this.imageUrl());
@@ -198,7 +284,9 @@ export class DocumentPreviewComponent implements OnDestroy {
             return;
           }
           if (blob.type !== 'application/pdf') {
-            this.message.set('Este formato no tiene vista previa. Descarga el original para abrirlo.');
+            this.message.set(
+              'Este formato no tiene vista previa. Descarga el original para abrirlo.',
+            );
             return;
           }
           const engine = await import('pdfjs-dist');
@@ -210,6 +298,13 @@ export class DocumentPreviewComponent implements OnDestroy {
           }
           this.pdf = pdf;
           this.pages.set(pdf.numPages);
+          const firstPage = await pdf.getPage(1);
+          const available =
+            (this.canvas()?.nativeElement.parentElement?.parentElement?.clientWidth ?? 640) - 40;
+          this.scale = Math.max(
+            0.5,
+            Math.min(3, available / firstPage.getViewport({ scale: 1 }).width),
+          );
           await this.render();
         } catch {
           this.message.set('No se pudo interpretar el documento. Puedes descargar el original.');
@@ -237,9 +332,24 @@ export class DocumentPreviewComponent implements OnDestroy {
       const viewport = page.getViewport({ scale: this.scale, rotation: this.rotation });
       canvas.width = viewport.width;
       canvas.height = viewport.height;
+      this.renderWidth.set(viewport.width);
+      this.renderHeight.set(viewport.height);
       const task = page.render({ canvas, viewport });
       this.rendering = task;
       await task.promise;
+      const layer = this.textLayer()?.nativeElement;
+      if (layer) {
+        this.textRendering?.cancel();
+        layer.replaceChildren();
+        layer.style.setProperty('--total-scale-factor', String(this.scale));
+        const { TextLayer } = await import('pdfjs-dist');
+        this.textRendering = new TextLayer({
+          textContentSource: await page.getTextContent(),
+          container: layer,
+          viewport,
+        });
+        await this.textRendering.render();
+      }
       const text = await this.pageText(this.page());
       const ctx = canvas.getContext('2d')!;
       // 'multiply' tiñe el fondo sin tapar las letras.
@@ -413,6 +523,7 @@ export class DocumentPreviewComponent implements OnDestroy {
   }
 
   ngOnDestroy() {
+    this.textRendering?.cancel();
     this.serial++;
     this.rendering?.cancel();
     void this.pdf?.cleanup();
