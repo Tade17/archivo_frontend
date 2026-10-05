@@ -5,7 +5,6 @@ import {
   effect,
   inject,
   input,
-  output,
   signal,
   untracked,
   viewChild,
@@ -13,7 +12,6 @@ import {
 import { ArchiveApi } from '../../core/services/archive-api.service';
 import { DialogService } from '../../core/services/dialog.service';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
-import type { OcrPage, OcrBlock } from '../../core/models/archive.model';
 
 /** Fragmento de texto de una página tal como lo entrega pdf.js. */
 interface PdfTextItem {
@@ -88,7 +86,7 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
             class="icon-button"
             aria-label="Girar página"
             (click)="rotate()"
-            [disabled]="!pdf || correcting()"
+            [disabled]="!pdf"
           >
             ↻
           </button>
@@ -114,47 +112,7 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
             class="block"
             aria-label="Página del documento"
           ></canvas>
-          <div #textLayer class="textLayer" [class.hidden]="correcting()"></div>
-          @if (correcting()) {
-            @for (block of currentBlocks(); track block.id) {
-              <button
-                class="ocr-block"
-                [class.active]="selectedPage() === page() - 1 && selectedBlock() === block.id"
-                [disabled]="editingDisabled()"
-                [style.left.%]="(block.x / currentLayout()!.width) * 100"
-                [style.top.%]="(block.y / currentLayout()!.height) * 100"
-                [style.width.%]="(block.width / currentLayout()!.width) * 100"
-                [style.height.%]="(block.height / currentLayout()!.height) * 100"
-                [attr.aria-label]="'Corregir: ' + block.text"
-                [title]="block.text"
-                (click)="blockChosen.emit({ page: page() - 1, block })"
-              ></button>
-            }
-            @if (activeBlock(); as block) {
-              <div
-                class="absolute z-10 bg-white border border-[var(--brand)] rounded p-3 text-left shadow-lg"
-                [style.top.%]="
-                  Math.min(85, ((block.y + block.height) / currentLayout()!.height) * 100)
-                "
-                [style.left.px]="0"
-                [style.width.px]="Math.min(renderWidth(), 460)"
-              >
-                <label for="page-ocr-correction">Corregir fragmento de esta página</label>
-                <textarea
-                  id="page-ocr-correction"
-                  rows="3"
-                  maxlength="10000"
-                  [disabled]="editingDisabled()"
-                  [value]="block.text"
-                  (input)="blockEdited.emit($any($event.target).value)"
-                  aria-describedby="correction-help"
-                ></textarea>
-                <p id="correction-help" class="text-xs text-[var(--muted)] mt-2">
-                  Guarda los cambios para actualizar el PDF y el buscador.
-                </p>
-              </div>
-            }
-          }
+          <div #textLayer class="textLayer"></div>
         </div>
         @if (imageUrl()) {
           <img
@@ -189,15 +147,7 @@ const fold = (text: string): string => text.split('').map(foldChar).join('');
   `,
 })
 export class DocumentPreviewComponent implements OnDestroy {
-  layout = input<OcrPage[]>([]);
-  correcting = input(false);
-  selectedBlock = input<string | null>(null);
-  selectedPage = input(-1);
-  editingDisabled = input(false);
   revision = input<string | null>(null);
-  blockChosen = output<{ page: number; block: OcrBlock }>();
-  blockEdited = output<string>();
-  Math = Math;
   renderWidth = signal(0);
   renderHeight = signal(0);
   textLayer = viewChild<ElementRef<HTMLElement>>('textLayer');
@@ -239,23 +189,6 @@ export class DocumentPreviewComponent implements OnDestroy {
       const canvas = this.canvas();
       if (canvas) untracked(() => void this.open(id));
     });
-    effect(() => {
-      if (this.correcting()) {
-        this.rotation = 0;
-        untracked(() => void this.render());
-      }
-    });
-  }
-
-  currentLayout() {
-    return this.layout()[this.page() - 1];
-  }
-  currentBlocks() {
-    return this.currentLayout()?.blocks ?? [];
-  }
-  activeBlock() {
-    if (this.selectedPage() !== this.page() - 1) return undefined;
-    return this.currentBlocks().find((b) => b.id === this.selectedBlock());
   }
 
   private async open(id: string | null) {

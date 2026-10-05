@@ -1,12 +1,5 @@
 import { inject } from '@angular/core';
-import { Routes, Router, CanActivateFn, CanDeactivateFn } from '@angular/router';
-import { DialogService } from './core/services/dialog.service';
-const protectOcrChanges: CanDeactivateFn<{ hasUnsavedChanges(): boolean }> = (component) =>
-  !component.hasUnsavedChanges() ||
-  inject(DialogService).ask(
-    'Cambios sin guardar',
-    '¿Salir y descartar las correcciones pendientes del documento?',
-  );
+import { Routes, Router, CanActivateFn } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
 import { authGuard } from './core/guards/auth.guard';
 const roles =
@@ -69,7 +62,6 @@ export const routes: Routes = [
       { path: 'documentos', pathMatch: 'full', redirectTo: 'buscar' },
       {
         path: 'documentos/:id',
-        canDeactivate: [protectOcrChanges],
         loadComponent: () =>
           import('./features/documentos-digitales/pages/documento-detalle/documento-detalle.component').then(
             (m) => m.DocumentoDetalleComponent,
