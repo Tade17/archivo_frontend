@@ -35,6 +35,45 @@ export interface RecordFile {
   documentoId: string | null;
   documentoNombre: string | null;
   totalDocumentos: number;
+  destinatario: string | null;
+  numeroFolios: number | null;
+  contenedorId: string;
+  contenedorTipo: TipoContenedor;
+  contenedorDescripcion: string;
+  contenedorEstado: EstadoContenedor;
+  seccion: string;
+  nivel: string;
+  area: string;
+}
+export type TipoContenedor = 'ARCHIVADOR' | 'FOLDER';
+export type EstadoContenedor = 'PENDIENTE' | 'COMPLETADO';
+/** Archivador o folder físico guardado en un Área (Sección → Nivel → Área). */
+export interface Contenedor {
+  id: string;
+  tipo: TipoContenedor;
+  descripcion: string;
+  estado: EstadoContenedor;
+  fechaRegistro: string;
+  fechaActualizacion: string;
+  creadoPorNombre: string;
+  areaId: string;
+  area: string;
+  nivelId: string;
+  nivel: string;
+  seccionId: string;
+  seccion: string;
+  totalDocumentos: number;
+}
+export interface UbicacionItem {
+  id: string;
+  codigo: string;
+}
+/** Matriz física del archivo: Sección (estante) → Nivel → Área (caja). */
+export interface Ubicaciones {
+  archivoCentral: { id?: string; nombre?: string };
+  secciones: UbicacionItem[];
+  niveles: (UbicacionItem & { seccionId: string })[];
+  areas: (UbicacionItem & { nivelId: string; totalContenedores: number })[];
 }
 export interface DigitalFile {
   pdfDisponible: boolean;

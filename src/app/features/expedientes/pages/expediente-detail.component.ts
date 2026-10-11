@@ -84,7 +84,35 @@ const TONE_CLASSES: Record<StageTone, string> = {
               <dt>Fecha del documento</dt>
               <dd>{{ r.fechaDocumento | date: 'dd/MM/yyyy' }}</dd>
             </div>
+            <div>
+              <dt>Destinatario</dt>
+              <dd>{{ r.destinatario || '—' }}</dd>
+            </div>
+            <div>
+              <dt>Número de folios</dt>
+              <dd>{{ r.numeroFolios ?? '—' }}</dd>
+            </div>
           </dl>
+          <p class="eyebrow mt-7 mb-3">UBICACIÓN FÍSICA</p>
+          <div class="rounded-[6px] border border-[var(--line)] bg-[var(--soft)] px-4 py-3">
+            <p class="text-sm">
+              Sección <strong>{{ r.seccion }}</strong> · Nivel <strong>{{ r.nivel }}</strong> ·
+              Área <strong>{{ r.area }}</strong>
+            </p>
+            <p class="text-xs mt-2">
+              {{ r.contenedorTipo === 'FOLDER' ? 'Folder' : 'Archivador' }}:
+              @if (auth.can('GESTOR_DOCUMENTAL')) {
+                <a [routerLink]="['/contenedores', r.contenedorId]" class="font-semibold">{{
+                  r.contenedorDescripcion
+                }}</a>
+              } @else {
+                <strong>{{ r.contenedorDescripcion }}</strong>
+              }
+              <span class="badge ml-2" [class.warning]="r.contenedorEstado === 'PENDIENTE'">{{
+                r.contenedorEstado === 'PENDIENTE' ? 'Pendiente' : 'Completado'
+              }}</span>
+            </p>
+          </div>
           <p class="eyebrow mt-7 mb-3">GLOSA</p>
           <p class="text-sm leading-7 whitespace-pre-wrap">
             {{ r.glosa || 'Sin glosa registrada.' }}

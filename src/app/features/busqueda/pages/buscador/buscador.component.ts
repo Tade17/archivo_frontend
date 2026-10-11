@@ -242,6 +242,16 @@ interface SearchFilters {
               <dd>{{ r.remitente }}</dd>
             </div>
             <div>
+              <dt>Ubicación física</dt>
+              <dd>
+                Sección {{ r.seccion }} · Nivel {{ r.nivel }} · Área {{ r.area }}
+                <span class="block text-[var(--muted)] mt-1"
+                  >{{ r.contenedorTipo === 'FOLDER' ? 'Folder' : 'Archivador' }}:
+                  {{ r.contenedorDescripcion }}</span
+                >
+              </dd>
+            </div>
+            <div>
               <dt>Archivo digital</dt>
               <dd>
                 @if (r.documentoNombre) {

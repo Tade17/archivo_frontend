@@ -1,7 +1,17 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { environment } from '../../../environments/environment';
-import { Page, RecordFile, DigitalFile, Catalogs, User, AuditEvent } from '../models/archive.model';
+import {
+  Page,
+  RecordFile,
+  DigitalFile,
+  Catalogs,
+  User,
+  AuditEvent,
+  Contenedor,
+  TipoContenedor,
+  Ubicaciones,
+} from '../models/archive.model';
 @Injectable({ providedIn: 'root' })
 export class ArchiveApi {
   private http = inject(HttpClient);
@@ -85,4 +95,41 @@ export class ArchiveApi {
   createCatalog(path: string, body: unknown) {
     return this.http.post(this.base + '/' + path, body);
   }
+  ubicaciones() {
+    return this.http.get<Ubicaciones>(this.base + '/workspace/ubicaciones');
+  }
+  /** Alta/edición/baja de la matriz física; solo el administrador. */
+  saveUbicacion(tipo: UbicacionTipo, id: string | null, body: unknown) {
+    const url = this.base + '/' + UBICACION_PATH[tipo];
+    return id ? this.http.put(url + '/' + id, body) : this.http.post(url, body);
+  }
+  deleteUbicacion(tipo: UbicacionTipo, id: string) {
+    return this.http.delete(this.base + '/' + UBICACION_PATH[tipo] + '/' + id);
+  }
+  contenedores(filters: Record<string, unknown> = {}, page = 0, size = 20) {
+    return this.http.get<Page<Contenedor>>(this.base + '/workspace/contenedores', {
+      params: this.params({ ...filters, page, size }),
+    });
+  }
+  contenedor(id: string) {
+    return this.http.get<Contenedor>(this.base + '/workspace/contenedores/' + id);
+  }
+  saveContenedor(id: string | null, body: { cajaId: string; tipo: TipoContenedor; descripcion: string }) {
+    const url = this.base + '/workspace/contenedores';
+    return id
+      ? this.http.put<{ id: string }>(url + '/' + id, body)
+      : this.http.post<{ id: string }>(url, body);
+  }
+  cambiarEstadoContenedor(id: string, accion: 'completar' | 'reabrir') {
+    return this.http.post(this.base + '/workspace/contenedores/' + id + '/' + accion, {});
+  }
+  deleteContenedor(id: string) {
+    return this.http.delete(this.base + '/workspace/contenedores/' + id);
+  }
 }
+export type UbicacionTipo = 'seccion' | 'nivel' | 'area';
+const UBICACION_PATH: Record<UbicacionTipo, string> = {
+  seccion: 'estantes',
+  nivel: 'niveles',
+  area: 'cajas',
+};

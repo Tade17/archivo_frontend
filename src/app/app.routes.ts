@@ -59,6 +59,30 @@ export const routes: Routes = [
             (m) => m.CargaDocumentosComponent,
           ),
       },
+      {
+        path: 'contenedores',
+        canActivate: [roles('GESTOR_DOCUMENTAL')],
+        loadComponent: () =>
+          import('./features/contenedores/pages/contenedor-list/contenedor-list.component').then(
+            (m) => m.ContenedorListComponent,
+          ),
+      },
+      {
+        path: 'contenedores/:id',
+        canActivate: [roles('GESTOR_DOCUMENTAL')],
+        loadComponent: () =>
+          import('./features/contenedores/pages/contenedor-detail/contenedor-detail.component').then(
+            (m) => m.ContenedorDetailComponent,
+          ),
+      },
+      {
+        path: 'ubicaciones',
+        canActivate: [roles()],
+        loadComponent: () =>
+          import('./features/ubicaciones/pages/ubicacion-admin/ubicacion-admin.component').then(
+            (m) => m.UbicacionAdminComponent,
+          ),
+      },
       { path: 'documentos', pathMatch: 'full', redirectTo: 'buscar' },
       {
         path: 'documentos/:id',
