@@ -152,18 +152,7 @@ interface SearchFilters {
                 >{{ position(i) }}</span
               >
               <span class="min-w-0 flex-1">
-                <span
-                  class="flex items-center justify-between gap-2 text-[9px] text-[var(--muted)]"
-                >
-                  <span>{{ r.codigoUnico }}</span>
-                  <span class="inline-flex items-center gap-1" [style.color]="statusColor(r.estadoNombre)"
-                    ><span
-                      class="w-1.5 h-1.5 rounded-full"
-                      [style.background]="statusColor(r.estadoNombre)"
-                    ></span
-                    >{{ r.estadoNombre }}</span
-                  >
-                </span>
+                <span class="block text-[9px] text-[var(--muted)]">{{ r.codigoUnico }}</span>
                 <h3 class="!text-xs text-[var(--deep)] mt-2 leading-5">{{ r.asunto }}</h3>
                 <p class="text-[10px] text-[var(--muted)] mt-2">{{ r.areaDestinoNombre }}</p>
               </span>
@@ -200,10 +189,6 @@ interface SearchFilters {
               <h2 class="mt-2 !text-white">{{ r.asunto }}</h2>
             </div>
             <div class="flex items-center gap-4 text-xs shrink-0">
-              <span class="inline-flex items-center gap-1.5 text-[#B9CDE6]"
-                ><span class="w-1.5 h-1.5 rounded-full bg-current"></span
-                >{{ r.estadoNombre }}</span
-              >
               @if (r.documentoId) {
                 <button
                   class="text-button !text-white underline underline-offset-2"
@@ -329,15 +314,6 @@ export class BuscadorComponent implements OnInit {
   position(index: number): string {
     const offset = (this.result()?.pagina ?? 0) * (this.result()?.tamano ?? 4);
     return String(offset + index + 1).padStart(2, '0');
-  }
-  statusColor(estado: string): string {
-    const colors: Record<string, string> = {
-      Activo: '#237A57',
-      'En trámite': '#B7791F',
-      Registrado: '#194F9A',
-      Archivado: '#667482',
-    };
-    return colors[estado] ?? '#667482';
   }
   download(record: RecordFile) {
     if (!record.documentoId) return;

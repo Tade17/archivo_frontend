@@ -1,5 +1,5 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
-import { RouterLink, ActivatedRoute } from '@angular/router';
+import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { ArchiveApi } from '../../../core/services/archive-api.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -51,7 +51,7 @@ const TONE_CLASSES: Record<StageTone, string> = {
             class="rounded-[6px] bg-[#DDECF5] px-5 py-4 flex flex-wrap items-start justify-between gap-4"
           >
             <div class="min-w-0">
-              <p class="eyebrow">EXPEDIENTE · {{ r.estadoNombre.toUpperCase() }}</p>
+              <p class="eyebrow">EXPEDIENTE</p>
               <h2 class="mt-2 text-[var(--deep)]">{{ r.asunto }}</h2>
             </div>
             <div class="text-right shrink-0">
@@ -146,6 +146,11 @@ const TONE_CLASSES: Record<StageTone, string> = {
                 ><span>Ver →</span></span
               ></a
             >
+            @if (auth.can('ADMIN')) {
+              <div class="text-right py-1 border-b border-[var(--line)]">
+                <button class="text-button" (click)="removeDocument(d)">Eliminar archivo</button>
+              </div>
+            }
           }
           @if (!docs()?.totalElementos) {
             <p class="text-xs text-[var(--muted)] mt-4">Todavía no se han cargado documentos.</p>
@@ -208,6 +213,11 @@ const TONE_CLASSES: Record<StageTone, string> = {
                 >
               </div>
             }
+            @if (auth.can('ADMIN')) {
+              <button class="btn secondary w-full" (click)="removeRecord(r)">
+                Eliminar expediente
+              </button>
+            }
             <p class="text-[10px] text-[var(--muted)] text-center">
               Todas las acciones quedan registradas en auditoría.
             </p>
@@ -224,6 +234,7 @@ export class ExpedienteDetailComponent implements OnInit {
   auth = inject(AuthService);
   dialog = inject(DialogService);
   route = inject(ActivatedRoute);
+  router = inject(Router);
   record = signal<RecordFile | null>(null);
   docs = signal<Page<DigitalFile> | null>(null);
   id = this.route.snapshot.paramMap.get('id')!;
@@ -238,6 +249,41 @@ export class ExpedienteDetailComponent implements OnInit {
     this.api
       .documents(this.id, page)
       .subscribe({ next: (r) => this.docs.set(r), error: (e) => this.dialog.error(e) });
+  }
+  async removeDocument(d: DigitalFile) {
+    if (
+      !(await this.dialog.ask(
+        'Eliminar archivo',
+        'Se eliminará «' +
+          d.nombreArchivo +
+          '» de forma definitiva. La acción queda registrada en Actividad.',
+      ))
+    )
+      return;
+    this.api.deleteDocument(d.id).subscribe({
+      next: () => {
+        this.loadDocs(0);
+        this.api.record(this.id).subscribe({ next: (r) => this.record.set(r) });
+      },
+      error: (e) => this.dialog.error(e),
+    });
+  }
+  async removeRecord(r: RecordFile) {
+    if (
+      !(await this.dialog.ask(
+        'Eliminar expediente',
+        'Se eliminará ' +
+          r.codigoUnico +
+          ' junto con sus ' +
+          r.totalDocumentos +
+          ' archivo(s) digitales. No se puede deshacer; queda registrado en Actividad.',
+      ))
+    )
+      return;
+    this.api.deleteRecord(r.id).subscribe({
+      next: () => this.router.navigate(['/contenedores', r.contenedorId]),
+      error: (e) => this.dialog.error(e),
+    });
   }
   ocrLabel(document: DigitalFile) {
     return {
@@ -275,7 +321,13 @@ export class ExpedienteDetailComponent implements OnInit {
         detail: hasDocs ? `${r.totalDocumentos} documento(s) cargados` : 'Pendiente de cargar',
         tone: hasDocs ? 'done' : 'pending',
       },
-      { number: '03', label: r.estadoNombre, detail: 'Estado actual', tone: 'current' },
+      {
+        number: '03',
+        label: 'Archivo',
+        detail:
+          r.contenedorEstado === 'COMPLETADO' ? 'Contenedor completado' : 'Contenedor pendiente',
+        tone: r.contenedorEstado === 'COMPLETADO' ? 'done' : 'current',
+      },
     ];
   }
   checklist(r: RecordFile): { text: string; ok: boolean }[] {

@@ -95,6 +95,19 @@ export class ArchiveApi {
   createCatalog(path: string, body: unknown) {
     return this.http.post(this.base + '/' + path, body);
   }
+  updateCatalog(path: string, id: string, body: unknown) {
+    return this.http.put(this.base + '/' + path + '/' + id, body);
+  }
+  deleteCatalog(path: string, id: string) {
+    return this.http.delete(this.base + '/' + path + '/' + id);
+  }
+  /** Solo el administrador: corrige un registro hecho por error. Queda en Actividad. */
+  deleteRecord(id: string) {
+    return this.http.delete(this.base + '/expedientes/' + id);
+  }
+  deleteDocument(id: string) {
+    return this.http.delete(this.base + '/documentos-digitales/' + id);
+  }
   ubicaciones() {
     return this.http.get<Ubicaciones>(this.base + '/workspace/ubicaciones');
   }

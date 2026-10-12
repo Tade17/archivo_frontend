@@ -5,13 +5,6 @@ import { DialogService } from '../../core/services/dialog.service';
 import { Page, RecordFile } from '../../core/models/archive.model';
 import { PagerComponent } from './pager.component';
 
-const STATUS_COLORS: Record<string, string> = {
-  Activo: '#237A57',
-  'En trámite': '#B7791F',
-  Registrado: '#194F9A',
-  Archivado: '#667482',
-};
-
 @Component({
   selector: 'app-record-picker',
   imports: [FormsModule, PagerComponent],
@@ -52,16 +45,7 @@ const STATUS_COLORS: Record<string, string> = {
             class="block text-left w-full px-4 py-3 border-b border-[var(--line)] last:border-b-0 hover:bg-[var(--soft)]"
             (click)="chosen.emit(r); result.set(null)"
           >
-            <span class="flex items-center justify-between gap-2 text-[10px] text-[var(--muted)]">
-              <strong class="text-[var(--deep)]">{{ r.codigoUnico }}</strong>
-              <span class="inline-flex items-center gap-1" [style.color]="statusColor(r.estadoNombre)"
-                ><span
-                  class="w-1.5 h-1.5 rounded-full"
-                  [style.background]="statusColor(r.estadoNombre)"
-                ></span
-                >{{ r.estadoNombre }}</span
-              >
-            </span>
+            <strong class="block text-[10px] text-[var(--deep)]">{{ r.codigoUnico }}</strong>
             <span class="block text-xs text-[var(--ink)] mt-1.5">{{ r.asunto }}</span>
             <span class="block text-[10px] text-[var(--muted)] mt-1"
               >{{ r.areaDestinoNombre }} · {{ r.tipoNombre }}</span
@@ -88,9 +72,6 @@ export class RecordPickerComponent {
   text = '';
   busy = signal(false);
   result = signal<Page<RecordFile> | null>(null);
-  statusColor(estado: string): string {
-    return STATUS_COLORS[estado] ?? '#667482';
-  }
   search(page: number) {
     this.busy.set(true);
     this.api.search({ texto: this.text }, page).subscribe({

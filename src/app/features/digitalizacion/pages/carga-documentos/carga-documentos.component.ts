@@ -48,10 +48,7 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
         @if (record(); as r) {
           <div class="flex justify-between gap-3">
             <div>
-              <div class="flex items-center gap-2">
-                <strong class="text-[var(--deep)]">{{ r.codigoUnico }}</strong>
-                <span class="badge neutral">{{ r.estadoNombre }}</span>
-              </div>
+              <strong class="text-[var(--deep)]">{{ r.codigoUnico }}</strong>
               <p class="text-xs mt-2">{{ r.asunto }}</p>
               <p class="text-[10px] text-[var(--muted)] mt-2">
                 {{ r.areaDestinoNombre }} · {{ r.tipoNombre }} · {{ r.totalDocumentos }} documento(s) ya

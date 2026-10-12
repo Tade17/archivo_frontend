@@ -1,5 +1,5 @@
 import { Component, inject, signal, viewChild, OnDestroy, OnInit } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ArchiveApi } from '../../../../core/services/archive-api.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { DialogService } from '../../../../core/services/dialog.service';
@@ -81,6 +81,11 @@ import { saveBlob } from '../../../../shared/utils/save-blob';
               SHA-256: {{ d.hashSha256 }}
             </p>
           </details>
+          @if (auth.can('ADMIN')) {
+            <button class="btn secondary w-full" (click)="removeDocument(d)">
+              Eliminar archivo
+            </button>
+          }
         </aside>
       </div>
     } @else {
@@ -93,6 +98,7 @@ export class DocumentoDetalleComponent implements OnInit, OnDestroy {
   auth = inject(AuthService);
   dialog = inject(DialogService);
   route = inject(ActivatedRoute);
+  router = inject(Router);
   viewer = viewChild(DocumentPreviewComponent);
   doc = signal<DigitalFile | null>(null);
   busy = signal(false);
@@ -112,6 +118,21 @@ export class DocumentoDetalleComponent implements OnInit, OnDestroy {
         if (this.processing(document)) this.pollTimer = setTimeout(() => this.loadDocument(), 2500);
       },
       error: (error) => this.dialog.error(error),
+    });
+  }
+  async removeDocument(d: DigitalFile) {
+    if (
+      !(await this.dialog.ask(
+        'Eliminar archivo',
+        'Se eliminará «' +
+          d.nombreArchivo +
+          '» de forma definitiva. La acción queda registrada en Actividad.',
+      ))
+    )
+      return;
+    this.api.deleteDocument(d.id).subscribe({
+      next: () => this.router.navigate(['/expedientes', d.expedienteId]),
+      error: (e) => this.dialog.error(e),
     });
   }
   processing(d: DigitalFile) {
