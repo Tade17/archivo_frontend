@@ -36,18 +36,6 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
     </div>
     <div class="workspace space-y-6">
       @if (alertas.resumen(); as r) {
-        @if (r.vencidos > 0) {
-          <div
-            role="alert"
-            class="rounded-[6px] border border-[#E8B4B0] bg-[#FDECEA] text-[#8C1D18] px-5 py-4 text-sm flex flex-wrap items-center justify-between gap-3"
-          >
-            <span
-              ><strong>{{ r.vencidos }} préstamo(s) vencido(s) sin devolver.</strong> Reclama la
-              devolución a la entidad que los tiene.</span
-            >
-            <button class="text-button" (click)="filtrar('VENCIDOS')">Ver vencidos</button>
-          </div>
-        }
         <div class="grid sm:grid-cols-3 gap-4">
           <div class="panel !py-4">
             <p class="eyebrow">SIN DEVOLVER</p>
