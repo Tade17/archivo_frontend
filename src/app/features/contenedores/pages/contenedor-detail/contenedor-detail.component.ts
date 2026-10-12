@@ -39,10 +39,25 @@ import { UbicacionPickerComponent } from '../../../../shared/components/ubicacio
                   Área <strong>{{ c.area }}</strong>
                 </p>
               </div>
-              <span class="badge" [class.warning]="c.estado === 'PENDIENTE'">{{
-                c.estado === 'PENDIENTE' ? 'Pendiente' : 'Completado'
-              }}</span>
+              <span class="flex flex-col items-end gap-2">
+                <span class="badge" [class.warning]="c.estado === 'PENDIENTE'">{{
+                  c.estado === 'PENDIENTE' ? 'Pendiente' : 'Completado'
+                }}</span>
+                @if (c.prestado) {
+                  <span class="badge warning">Prestado</span>
+                }
+              </span>
             </div>
+            @if (puedeEditar() && c.totalDocumentos > 0) {
+              <div class="mt-4">
+                <a
+                  class="text-button"
+                  routerLink="/prestamos"
+                  [queryParams]="{ contenedorId: c.id }"
+                  >Prestar este {{ c.tipo === 'FOLDER' ? 'folder' : 'archivador' }} completo →</a
+                >
+              </div>
+            }
             @if (editando()) {
               <form #f="ngForm" class="mt-6 border-t border-[var(--line)] pt-6" (ngSubmit)="guardar()">
                 <app-ubicacion-picker [(areaId)]="form.cajaId" />

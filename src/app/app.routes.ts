@@ -76,6 +76,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'prestamos',
+        canActivate: [roles('GESTOR_DOCUMENTAL')],
+        loadComponent: () =>
+          import('./features/prestamos/pages/prestamo-list/prestamo-list.component').then(
+            (m) => m.PrestamoListComponent,
+          ),
+      },
+      {
         path: 'ubicaciones',
         canActivate: [roles()],
         loadComponent: () =>

@@ -41,6 +41,7 @@ export interface RecordFile {
   contenedorTipo: TipoContenedor;
   contenedorDescripcion: string;
   contenedorEstado: EstadoContenedor;
+  prestado?: boolean;
   seccion: string;
   nivel: string;
   area: string;
@@ -48,7 +49,31 @@ export interface RecordFile {
 export type TipoContenedor = 'ARCHIVADOR' | 'FOLDER';
 export type EstadoContenedor = 'PENDIENTE' | 'COMPLETADO';
 /** Archivador o folder físico guardado en un Área (Sección → Nivel → Área). */
+export interface Prestamo {
+  id: string;
+  objeto: 'DOCUMENTO' | 'CONTENEDOR';
+  expedienteId: string | null;
+  expedienteCodigo: string | null;
+  expedienteAsunto: string | null;
+  contenedorId: string | null;
+  contenedorDescripcion: string | null;
+  solicitante: string;
+  observaciones: string | null;
+  fechaSolicitud: string;
+  fechaDevolucionPrevista: string;
+  fechaDevolucionReal: string | null;
+  estado: 'PRESTADO' | 'DEVUELTO';
+  registradoPor: string;
+  diasRestantes: number | null;
+  semaforo: 'VERDE' | 'AMARILLO' | 'ROJO' | 'GRIS';
+}
+export interface ResumenPrestamos {
+  sinDevolver: number;
+  porVencer: number;
+  vencidos: number;
+}
 export interface Contenedor {
+  prestado?: boolean;
   id: string;
   tipo: TipoContenedor;
   descripcion: string;

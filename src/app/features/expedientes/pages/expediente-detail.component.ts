@@ -112,6 +112,11 @@ const TONE_CLASSES: Record<StageTone, string> = {
                 r.contenedorEstado === 'PENDIENTE' ? 'Pendiente' : 'Completado'
               }}</span>
             </p>
+            @if (r.prestado) {
+              <p class="text-xs mt-3 font-semibold text-[#8C1D18]">
+                ● El documento físico está prestado y todavía no fue devuelto.
+              </p>
+            }
           </div>
           <p class="eyebrow mt-7 mb-3">GLOSA</p>
           <p class="text-sm leading-7 whitespace-pre-wrap">
@@ -212,6 +217,12 @@ const TONE_CLASSES: Record<StageTone, string> = {
                   >Añadir documentos</a
                 >
               </div>
+              <a
+                class="btn secondary w-full"
+                routerLink="/prestamos"
+                [queryParams]="{ expedienteId: r.id }"
+                >Prestar documento físico</a
+              >
             }
             @if (auth.can('ADMIN')) {
               <button class="btn secondary w-full" (click)="removeRecord(r)">

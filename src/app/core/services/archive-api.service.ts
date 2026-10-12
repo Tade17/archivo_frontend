@@ -11,6 +11,8 @@ import {
   Contenedor,
   TipoContenedor,
   Ubicaciones,
+  Prestamo,
+  ResumenPrestamos,
 } from '../models/archive.model';
 @Injectable({ providedIn: 'root' })
 export class ArchiveApi {
@@ -107,6 +109,20 @@ export class ArchiveApi {
   }
   deleteDocument(id: string) {
     return this.http.delete(this.base + '/documentos-digitales/' + id);
+  }
+  prestamos(filters: Record<string, unknown> = {}, page = 0, size = 20) {
+    return this.http.get<Page<Prestamo>>(this.base + '/workspace/prestamos', {
+      params: this.params({ ...filters, page, size }),
+    });
+  }
+  prestamosResumen() {
+    return this.http.get<ResumenPrestamos>(this.base + '/workspace/prestamos/resumen');
+  }
+  crearPrestamo(body: unknown) {
+    return this.http.post<Prestamo>(this.base + '/workspace/prestamos', body);
+  }
+  devolverPrestamo(id: string) {
+    return this.http.post<Prestamo>(this.base + '/workspace/prestamos/' + id + '/devolver', {});
   }
   ubicaciones() {
     return this.http.get<Ubicaciones>(this.base + '/workspace/ubicaciones');

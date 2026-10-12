@@ -1,5 +1,7 @@
 import { Component, inject } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
+import { AlertasService } from '../../../core/services/alertas.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { DialogService } from '../../../core/services/dialog.service';
 @Component({
@@ -24,7 +26,13 @@ import { DialogService } from '../../../core/services/dialog.service';
               [routerLink]="n.path"
               routerLinkActive="!text-white border-b-2 border-[var(--yellow)]"
               class="text-[#B9CDE6] py-4 font-medium border-b-2 border-transparent"
-              >{{ n.label }}</a
+              >{{ n.label }}
+              @if (n.path === '/prestamos' && (alertas.resumen()?.vencidos ?? 0) > 0) {
+                <span
+                  class="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[#D93025] text-white text-[10px] font-bold"
+                  >{{ alertas.resumen()!.vencidos }}</span
+                >
+              }</a
             >
           }
         }
@@ -48,16 +56,38 @@ import { DialogService } from '../../../core/services/dialog.service';
         </button>
       </div>
     </header>
+    @if (alertas.resumen(); as r) {
+      @if (r.vencidos > 0) {
+        <div
+          role="alert"
+          class="bg-[#FDECEA] border-b border-[#E8B4B0] text-[#8C1D18] px-6 lg:px-16 py-2.5 text-[13px] flex flex-wrap items-center gap-3"
+        >
+          <span class="w-2.5 h-2.5 rounded-full bg-[#D93025]"></span>
+          <span
+            ><strong>{{ r.vencidos }} préstamo(s) vencido(s) sin devolver.</strong></span
+          >
+          <a routerLink="/prestamos" class="underline font-semibold">Revisar préstamos</a>
+        </div>
+      }
+    }
     <main><router-outlet /></main>`,
 })
 export class AppShellComponent {
   auth = inject(AuthService);
   dialog = inject(DialogService);
   router = inject(Router);
+  alertas = inject(AlertasService);
+  constructor() {
+    this.alertas.refrescar();
+    this.router.events
+      .pipe(filter((e) => e instanceof NavigationEnd))
+      .subscribe(() => this.alertas.refrescar());
+  }
   nav = [
     { label: 'Explorar', path: '/buscar', roles: null },
     { label: 'Archivadores y folders', path: '/contenedores', roles: ['GESTOR_DOCUMENTAL'] },
     { label: 'Cargar varios documentos', path: '/digitalizar', roles: ['GESTOR_DOCUMENTAL'] },
+    { label: 'Préstamos', path: '/prestamos', roles: ['GESTOR_DOCUMENTAL'] },
     { label: 'Ubicaciones', path: '/ubicaciones', roles: [] as string[] },
     { label: 'Actividad', path: '/auditoria', roles: [] as string[] },
     { label: 'Usuarios', path: '/usuarios', roles: [] as string[] },
