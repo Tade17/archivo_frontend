@@ -121,6 +121,10 @@ export interface DigitalFile {
   ocrIntentos: number;
   ocrRevisado: boolean;
   ocrActualizadoEn: string | null;
+  ocrPaginasProcesadas?: number | null;
+  ocrPaginasTotales?: number | null;
+  ocrFase?: 'QUEUED' | 'RECOGNIZING' | 'EXPORTING' | 'RETRY_WAIT' | 'COMPLETED' | 'ERROR' | null;
+  ocrProximoReintento?: string | null;
 }
 export interface User {
   id: string;

@@ -6,6 +6,7 @@ import { DialogService } from '../../../../core/services/dialog.service';
 import { DigitalFile } from '../../../../core/models/archive.model';
 import { DocumentPreviewComponent } from '../../../../shared/components/document-preview.component';
 import { DocumentSearchComponent } from '../../../../shared/components/document-search.component';
+import { Subscription } from 'rxjs';
 import { saveBlob } from '../../../../shared/utils/save-blob';
 @Component({
   selector: 'app-documento-detalle',
@@ -26,7 +27,11 @@ import { saveBlob } from '../../../../shared/utils/save-blob';
       <div class="workspace grid xl:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
         <section class="min-w-0">
           <div class="overflow-hidden rounded-[6px] border border-[var(--line)] bg-white">
-            <app-document-preview [id]="d.id" [name]="displayName(d)" [revision]="d.ocrActualizadoEn" />
+            <app-document-preview
+              [id]="d.id"
+              [name]="displayName(d)"
+              [revision]="d.ocrActualizadoEn"
+            />
           </div>
         </section>
         <aside class="min-w-0 xl:sticky xl:top-5 space-y-5">
@@ -40,10 +45,15 @@ import { saveBlob } from '../../../../shared/utils/save-blob';
               [class.neutral]="processing(d)"
               >{{ statusLabel(d) }}</span
             >
-            <p class="text-xs leading-6 text-[var(--muted)] mt-3" aria-live="polite">
+            <p
+              class="text-xs leading-6 text-[var(--muted)] mt-3"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
               {{ statusMessage(d) }}
             </p>
-            @if (d.ocrConfianza !== null) {
+            @if (!processing(d) && d.ocrConfianza !== null) {
               <p class="text-xs text-[var(--muted)] mt-2">
                 Confianza estimada: {{ confidencePercent(d) }}%
               </p>
@@ -103,22 +113,35 @@ export class DocumentoDetalleComponent implements OnInit, OnDestroy {
   doc = signal<DigitalFile | null>(null);
   busy = signal(false);
   private documentId = this.route.snapshot.paramMap.get('id')!;
+  private destroyed = false;
+  private subscriptions = new Subscription();
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   ngOnInit() {
     this.loadDocument();
   }
   ngOnDestroy() {
+    this.destroyed = true;
     if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = null;
+    this.subscriptions.unsubscribe();
   }
   private loadDocument() {
-    this.api.document(this.documentId).subscribe({
-      next: (document) => {
-        this.doc.set(document);
-        if (this.pollTimer) clearTimeout(this.pollTimer);
-        if (this.processing(document)) this.pollTimer = setTimeout(() => this.loadDocument(), 2500);
-      },
-      error: (error) => this.dialog.error(error),
-    });
+    if (this.destroyed) return;
+    this.subscriptions.add(
+      this.api.document(this.documentId).subscribe({
+        next: (document) => {
+          if (this.destroyed) return;
+          this.doc.set(document);
+          if (this.pollTimer) clearTimeout(this.pollTimer);
+          this.pollTimer = null;
+          if (this.processing(document))
+            this.pollTimer = setTimeout(() => this.loadDocument(), 2500);
+        },
+        error: (error) => {
+          if (!this.destroyed) this.dialog.error(error);
+        },
+      }),
+    );
   }
   async removeDocument(d: DigitalFile) {
     if (
@@ -142,6 +165,11 @@ export class DocumentoDetalleComponent implements OnInit, OnDestroy {
     return d.pdfDisponible ? d.nombreArchivo.replace(/\.[^.]+$/, '') + '.pdf' : d.nombreArchivo;
   }
   statusLabel(d: DigitalFile) {
+    if (this.processing(d)) {
+      if (d.ocrFase === 'QUEUED') return 'En cola';
+      if (d.ocrFase === 'EXPORTING' || d.ocrFase === 'COMPLETED') return 'Generando PDF';
+      if (d.ocrFase === 'RETRY_WAIT') return 'Reintento programado';
+    }
     return {
       PENDIENTE: 'En cola',
       PROCESANDO: 'Reconociendo texto',
@@ -151,14 +179,46 @@ export class DocumentoDetalleComponent implements OnInit, OnDestroy {
     }[d.ocrEstado];
   }
   statusMessage(d: DigitalFile) {
-    if (this.processing(d)) return 'El PDF se genera automáticamente. Puedes seguir trabajando.';
+    const progress = this.pageProgress(d);
+    if (this.processing(d)) {
+      let message = 'El PDF se genera automáticamente. Puedes seguir trabajando.';
+      if (d.ocrFase === 'QUEUED')
+        message = 'El documento está en cola. El reconocimiento comenzará automáticamente.';
+      if (d.ocrFase === 'EXPORTING' || d.ocrFase === 'COMPLETED')
+        message = 'Se está generando el PDF con texto. Puedes seguir trabajando.';
+      if (d.ocrFase === 'RETRY_WAIT')
+        message =
+          'Hubo una interrupción temporal. El sistema reintentará el mismo trabajo automáticamente.';
+      return progress ? progress + ' ' + message : message;
+    }
     if (d.ocrEstado === 'ERROR')
-      return d.ocrError || 'No se pudo generar el PDF. Puedes reintentarlo.';
+      return (
+        (progress ? progress + ' ' : '') +
+        (d.ocrError || 'No se pudo generar el PDF. Puedes reintentarlo.')
+      );
     if (!d.pdfDisponible)
       return 'Este archivo aún no tiene PDF con texto. Puedes generarlo sin volver a subirlo.';
     if (d.ocrEstado === 'REQUIERE_REVISION')
-      return 'El reconocimiento tuvo baja confianza. Puedes consultar el PDF igualmente.';
-    return 'El contenido ya está disponible para selección, copia y búsqueda.';
+      return (
+        (progress ? progress + ' ' : '') +
+        'El reconocimiento tuvo baja confianza. Puedes consultar el PDF igualmente.'
+      );
+    return (
+      (progress ? progress + ' ' : '') +
+      'El contenido ya está disponible para selección, copia y búsqueda.'
+    );
+  }
+  private pageProgress(d: DigitalFile) {
+    const confirmed = d.ocrPaginasProcesadas;
+    const total = d.ocrPaginasTotales;
+    if (confirmed == null || !Number.isInteger(confirmed) || confirmed < 0 || confirmed > 100)
+      return '';
+    if (total == null)
+      return confirmed > 0
+        ? `${confirmed} ${confirmed === 1 ? 'página reconocida' : 'páginas reconocidas'}; total aún no disponible.`
+        : '';
+    if (!Number.isInteger(total) || total < 1 || total > 100 || confirmed > total) return '';
+    return `${confirmed} de ${total} ${total === 1 ? 'página reconocida' : 'páginas reconocidas'}.`;
   }
   confidencePercent(d: DigitalFile) {
     return Math.round((d.ocrConfianza ?? 0) * 100);
@@ -176,17 +236,22 @@ export class DocumentoDetalleComponent implements OnInit, OnDestroy {
     });
   }
   retryOcr() {
-    if (this.busy()) return;
+    const current = this.doc();
+    if (this.destroyed || this.busy() || !current || this.processing(current)) return;
     this.busy.set(true);
-    this.api.retryOcr(this.documentId).subscribe({
-      next: () => {
-        this.busy.set(false);
-        this.loadDocument();
-      },
-      error: (e) => {
-        this.busy.set(false);
-        this.dialog.error(e);
-      },
-    });
+    this.subscriptions.add(
+      this.api.retryOcr(this.documentId).subscribe({
+        next: () => {
+          if (this.destroyed) return;
+          this.busy.set(false);
+          this.loadDocument();
+        },
+        error: (e) => {
+          if (this.destroyed) return;
+          this.busy.set(false);
+          this.dialog.error(e);
+        },
+      }),
+    );
   }
 }
