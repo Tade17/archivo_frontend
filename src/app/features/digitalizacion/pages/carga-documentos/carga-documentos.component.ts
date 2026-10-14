@@ -13,8 +13,8 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
   imports: [FormsModule, RouterLink, RecordPickerComponent, FileSizePipe],
   template: ` <div class="page-heading">
       <div>
-        <h1>Cargar varios <strong>documentos</strong></h1>
-        <p>Añade varios archivos a un expediente que ya existe.</p>
+        <h1>Añadir <strong>documentos</strong></h1>
+        <p>Adjunta archivos al expediente existente.</p>
       </div>
       <div class="flex gap-3">
         @for (s of steps(); track s.number) {
@@ -69,8 +69,13 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
           <p class="eyebrow">01 CAPTURA</p>
           <h2 class="mt-2">Añadir documentos</h2>
           <p class="text-xs text-[var(--muted)] leading-6 mt-3">
-            Selecciona archivos PDF, TIFF, JPG o PNG ya escaneados. Máximo 20 MB por archivo y 150
-            MB por lote.
+            PDF, TIFF, JPG o PNG. Máximo 100 archivos, 20 MB por archivo y 150 MB por lote. Las
+            imágenes juntas no pueden superar 20 MB; el PDF combinado admite hasta 100 páginas.
+          </p>
+          <p class="text-xs text-[var(--muted)] leading-6 mt-2">
+            Las imágenes se unirán en un PDF en el orden de la cola; cada TIFF conservará el orden
+            de sus páginas. Los PDF adjuntos quedarán separados. El OCR se ejecutará automáticamente
+            después de guardar, no durante la carga.
           </p>
           <div class="border-2 border-dashed border-[var(--line)] rounded-md p-9 mt-6 text-center">
             <label class="btn cursor-pointer"
@@ -99,8 +104,8 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
               >Resolución declarada<input type="number" min="72" max="2400" [(ngModel)]="dpi"
             /></label>
             <p class="text-xs text-[var(--muted)] leading-6">
-              Revisión manual. La resolución se registra como dato de captura; no se convierte el
-              archivo ni se certifica PDF/A.
+              La resolución se registra como dato de captura. Las imágenes se convierten en un PDF
+              sin modificar sus originales; no se certifica PDF/A.
             </p>
           </div>
         </section>
@@ -117,7 +122,7 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
           <table>
             <thead>
               <tr>
-                <th>ORDEN</th>
+                <th>ORDEN DE CARGA</th>
                 <th>ARCHIVO</th>
                 <th>TAMAÑO</th>
                 <th>REVISIÓN</th>
@@ -140,15 +145,22 @@ import { FileSizePipe } from '../../../../shared/pipes/file-size.pipe';
                     >
                   </td>
                   <td>
-                    <div class="flex gap-3">
+                    <div class="flex flex-wrap gap-3">
                       <button class="text-button" (click)="preview(row.file)">Vista previa</button
                       ><button
                         class="text-button"
                         (click)="move(i, -1)"
                         [disabled]="busy() || i === 0"
-                        aria-label="Mover arriba"
+                        [attr.aria-label]="'Mover ' + row.file.name + ' arriba'"
                       >
-                        ↑</button
+                        Mover arriba</button
+                      ><button
+                        class="text-button"
+                        (click)="move(i, 1)"
+                        [disabled]="busy() || i === files().length - 1"
+                        [attr.aria-label]="'Mover ' + row.file.name + ' abajo'"
+                      >
+                        Mover abajo</button
                       ><button class="text-button" (click)="remove(i)" [disabled]="busy()">
                         Quitar
                       </button>
@@ -209,6 +221,7 @@ export class CargaDocumentosComponent implements OnInit {
         .subscribe({ next: (r) => this.record.set(r), error: (e) => this.dialog.error(e) });
   }
   select(event: Event) {
+    if (this.busy()) return;
     const input = event.target as HTMLInputElement;
     const rows = [...this.files()];
     const rejected: string[] = [];
@@ -224,7 +237,19 @@ export class CargaDocumentosComponent implements OnInit {
       if (!rows.some((r) => r.file.name === file.name && r.file.size === file.size))
         rows.push({ file, reviewed: false });
     }
-    if (rows.reduce((s, r) => s + r.file.size, 0) > 150 * 1024 * 1024) {
+    if (rows.length > 100) {
+      this.dialog.info('Demasiados archivos', 'Selecciona como máximo 100 archivos por carga.');
+    } else if (
+      rows
+        .filter((row) => row.file.type !== 'application/pdf')
+        .reduce((total, row) => total + row.file.size, 0) >
+      20 * 1024 * 1024
+    ) {
+      this.dialog.info(
+        'Demasiadas imágenes',
+        'Las imágenes juntas no pueden superar 20 MB. Reduce el lote antes de cargarlo.',
+      );
+    } else if (rows.reduce((s, r) => s + r.file.size, 0) > 150 * 1024 * 1024) {
       this.dialog.info('Lote demasiado grande', 'Selecciona como máximo 150 MB por lote.');
     } else this.files.set(rows);
     input.value = '';
@@ -244,9 +269,18 @@ export class CargaDocumentosComponent implements OnInit {
     );
   }
   remove(i: number) {
+    if (this.busy()) return;
     this.files.update((r) => r.filter((_, n) => n !== i));
   }
   move(i: number, d: number) {
+    if (
+      this.busy() ||
+      i < 0 ||
+      i >= this.files().length ||
+      i + d < 0 ||
+      i + d >= this.files().length
+    )
+      return;
     this.files.update((rows) => {
       const next = [...rows];
       [next[i], next[i + d]] = [next[i + d], next[i]];

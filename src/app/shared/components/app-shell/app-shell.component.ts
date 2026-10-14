@@ -86,7 +86,6 @@ export class AppShellComponent {
   nav = [
     { label: 'Explorar', path: '/buscar', roles: null },
     { label: 'Archivadores y folders', path: '/contenedores', roles: ['GESTOR_DOCUMENTAL'] },
-    { label: 'Cargar varios documentos', path: '/digitalizar', roles: ['GESTOR_DOCUMENTAL'] },
     { label: 'Préstamos', path: '/prestamos', roles: ['GESTOR_DOCUMENTAL'] },
     { label: 'Ubicaciones', path: '/ubicaciones', roles: [] as string[] },
     { label: 'Actividad', path: '/auditoria', roles: [] as string[] },

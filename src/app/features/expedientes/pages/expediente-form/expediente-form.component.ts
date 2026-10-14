@@ -185,60 +185,89 @@ import { UbicacionPickerComponent } from '../../../../shared/components/ubicacio
             [(ngModel)]="data.glosa"
           ></textarea>
         </label>
-        @if (!id) {
-          <div class="rule"></div>
-          <section aria-labelledby="documentos-iniciales">
-            <p class="eyebrow">03 DOCUMENTO DIGITAL</p>
-            <h2 id="documentos-iniciales" class="mt-1">Adjunta los archivos</h2>
-            <p class="text-xs text-[var(--muted)] leading-6 mt-2">
-              Puedes adjuntar uno o varios archivos ahora. También podrás hacerlo después desde la
-              ficha del expediente.
-            </p>
-            <label class="btn secondary cursor-pointer mt-4">
-              Seleccionar archivos
-              <input
-                class="sr-only"
-                type="file"
-                multiple
-                accept=".pdf,.tiff,.tif,.jpg,.jpeg,.png"
-                [disabled]="busy()"
-                (change)="selectFiles($event)"
-              />
-            </label>
-            <p class="text-[10px] text-[var(--muted)] mt-2">
-              PDF, TIFF, JPG o PNG. Máximo 20 MB por archivo y 150 MB en total.
-            </p>
-            @if (files().length) {
-              <ul class="mt-4 border-t border-[var(--line)]" aria-label="Archivos seleccionados">
-                @for (file of files(); track file.name + file.size) {
-                  <li
-                    class="flex items-center justify-between gap-4 py-3 border-b border-[var(--line)]"
-                  >
-                    <span class="min-w-0 text-xs break-all">{{ file.name }}</span>
-                    <span class="flex items-center gap-4 shrink-0">
-                      <span class="text-[10px] text-[var(--muted)]">{{
-                        file.size | fileSize
-                      }}</span>
-                      <button
-                        type="button"
-                        class="text-button"
-                        [disabled]="busy()"
-                        (click)="removeFile(file)"
-                      >
-                        Quitar
-                      </button>
-                    </span>
-                  </li>
-                }
-              </ul>
-            }
-          </section>
-        }
+          @if (!id) {
+            <div class="rule"></div>
+            <section aria-labelledby="documentos-iniciales">
+              <p class="eyebrow">03 DOCUMENTO DIGITAL</p>
+              <h2 id="documentos-iniciales" class="mt-1">Adjunta los archivos</h2>
+              <p class="text-xs text-[var(--muted)] leading-6 mt-2">
+                Puedes adjuntar uno o varios archivos ahora. También podrás hacerlo después desde la
+                ficha del expediente.
+              </p>
+              <p class="text-xs text-[var(--muted)] leading-6 mt-2">
+                Las imágenes se unirán en un PDF en el orden de esta lista; cada TIFF conservará el
+                orden de sus páginas. Los PDF adjuntos quedarán separados. El OCR se ejecutará
+                automáticamente después de guardar, no durante la carga.
+              </p>
+              <label class="btn secondary cursor-pointer mt-4">
+                Seleccionar archivos
+                <input
+                  class="sr-only"
+                  type="file"
+                  multiple
+                  accept=".pdf,.tiff,.tif,.jpg,.jpeg,.png"
+                  [disabled]="busy()"
+                  (change)="selectFiles($event)"
+                />
+              </label>
+              <p class="text-[10px] text-[var(--muted)] mt-2">
+                PDF, TIFF, JPG o PNG. Máximo 100 archivos, 20 MB por archivo y 150 MB en total. Las
+                imágenes juntas no pueden superar 20 MB; el PDF combinado admite hasta 100 páginas.
+              </p>
+              @if (files().length) {
+                <ul
+                  class="mt-4 border-t border-[var(--line)]"
+                  aria-label="Orden de carga de los archivos"
+                >
+                  @for (file of files(); track file; let i = $index) {
+                    <li
+                      class="flex flex-wrap items-center justify-between gap-3 py-3 border-b border-[var(--line)]"
+                    >
+                      <span class="min-w-0 text-xs break-all">{{ i + 1 }}. {{ file.name }}</span>
+                      <span class="flex flex-wrap items-center gap-3">
+                        <span class="text-[10px] text-[var(--muted)]">{{
+                          file.size | fileSize
+                        }}</span>
+                        <button
+                          type="button"
+                          class="text-button"
+                          [disabled]="busy() || i === 0"
+                          [attr.aria-label]="'Mover ' + file.name + ' arriba'"
+                          (click)="moveFile(i, -1)"
+                        >
+                          Mover arriba
+                        </button>
+                        <button
+                          type="button"
+                          class="text-button"
+                          [disabled]="busy() || i === files().length - 1"
+                          [attr.aria-label]="'Mover ' + file.name + ' abajo'"
+                          (click)="moveFile(i, 1)"
+                        >
+                          Mover abajo
+                        </button>
+                        <button
+                          type="button"
+                          class="text-button"
+                          [disabled]="busy()"
+                          (click)="removeFile(file)"
+                        >
+                          Quitar
+                        </button>
+                      </span>
+                    </li>
+                  }
+                </ul>
+              }
+            </section>
+          }
         </div>
         <div
           class="bg-[#F4F8FB] border-t border-[var(--line)] px-6 py-4 flex flex-wrap items-center justify-between gap-3"
         >
-          <span class="text-[10px] text-[var(--muted)]">Los campos con datos son obligatorios.</span>
+          <span class="text-[10px] text-[var(--muted)]"
+            >Los campos con datos son obligatorios.</span
+          >
           <button class="btn" [disabled]="!form.valid || !data.contenedorId || busy()">
             {{ busyLabel() || (id ? 'Guardar cambios' : 'Crear expediente') }}
           </button>
@@ -335,6 +364,7 @@ export class ExpedienteFormComponent implements OnInit {
     this.contenedor.set(this.opciones().find((c) => c.id === id) ?? null);
   }
   selectFiles(event: Event) {
+    if (this.busy()) return;
     const input = event.target as HTMLInputElement;
     const next = [...this.files()];
     const rejected: string[] = [];
@@ -346,7 +376,19 @@ export class ExpedienteFormComponent implements OnInit {
       }
       if (!next.some((item) => item.name === file.name && item.size === file.size)) next.push(file);
     }
-    if (next.reduce((total, file) => total + file.size, 0) > 150 * 1024 * 1024) {
+    if (next.length > 100) {
+      this.dialog.info('Demasiados archivos', 'Selecciona como máximo 100 archivos por carga.');
+    } else if (
+      next
+        .filter((file) => file.type !== 'application/pdf')
+        .reduce((total, file) => total + file.size, 0) >
+      20 * 1024 * 1024
+    ) {
+      this.dialog.info(
+        'Demasiadas imágenes',
+        'Las imágenes juntas no pueden superar 20 MB. Reduce el lote antes de crear el expediente.',
+      );
+    } else if (next.reduce((total, file) => total + file.size, 0) > 150 * 1024 * 1024) {
       this.dialog.info('Demasiados archivos', 'Selecciona como máximo 150 MB en total.');
     } else {
       this.files.set(next);
@@ -360,7 +402,24 @@ export class ExpedienteFormComponent implements OnInit {
     }
   }
   removeFile(file: File) {
+    if (this.busy()) return;
     this.files.update((files) => files.filter((item) => item !== file));
+  }
+  moveFile(index: number, direction: number) {
+    const target = index + direction;
+    if (
+      this.busy() ||
+      index < 0 ||
+      index >= this.files().length ||
+      target < 0 ||
+      target >= this.files().length
+    )
+      return;
+    this.files.update((files) => {
+      const next = [...files];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   }
   async submit() {
     if (this.busy()) return;
