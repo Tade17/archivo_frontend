@@ -308,7 +308,6 @@ export class ExpedienteDetailComponent implements OnInit {
   ocrNeedsAttention(document: DigitalFile) {
     return ['REQUIERE_REVISION', 'ERROR'].includes(document.ocrEstado);
   }
-  /** dd/MM a partir de una fecha ISO, sin depender de datos de idioma. */
   private shortDate(iso: string): string {
     const date = new Date(iso);
     return String(date.getDate()).padStart(2, '0') + '/' + String(date.getMonth() + 1).padStart(2, '0');
@@ -316,7 +315,6 @@ export class ExpedienteDetailComponent implements OnInit {
   toneClass(tone: StageTone): string {
     return TONE_CLASSES[tone];
   }
-  /** Etapas del recorrido de un expediente digital: registro, documentos y estado actual. */
   stages(r: RecordFile): Stage[] {
     const hasDocs = r.totalDocumentos > 0;
     return [

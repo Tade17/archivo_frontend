@@ -9,10 +9,6 @@ import { Contenedor, Page, TipoContenedor } from '../../../../core/models/archiv
 import { PagerComponent } from '../../../../shared/components/pager.component';
 import { UbicacionPickerComponent } from '../../../../shared/components/ubicacion-picker.component';
 
-/**
- * Archivadores y folders físicos. Los pendientes salen primero: son los que
- * quedaron a medio digitalizar y alguien tiene que retomar.
- */
 @Component({
   selector: 'app-contenedor-list',
   imports: [FormsModule, DatePipe, RouterLink, PagerComponent, UbicacionPickerComponent],

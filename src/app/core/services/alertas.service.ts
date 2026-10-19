@@ -3,10 +3,6 @@ import { ArchiveApi } from './archive-api.service';
 import { AuthService } from './auth.service';
 import { ResumenPrestamos } from '../models/archive.model';
 
-/**
- * Alerta de préstamos sin devolver. Solo la consulta el personal del archivo
- * (administrador y gestor); para el lector no hace ninguna petición.
- */
 @Injectable({ providedIn: 'root' })
 export class AlertasService {
   private api = inject(ArchiveApi);

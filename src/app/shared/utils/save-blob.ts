@@ -1,4 +1,3 @@
-/** Dispara la descarga de un archivo generado en memoria. */
 export function saveBlob(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

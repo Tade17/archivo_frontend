@@ -310,7 +310,6 @@ export class BuscadorComponent implements OnInit {
     this.filters = { texto: '', anio: '', areaDestinoId: '', tipoId: '' };
     this.search(0);
   }
-  /** Número de orden del resultado dentro de toda la búsqueda (01, 02… continúa entre páginas). */
   position(index: number): string {
     const offset = (this.result()?.pagina ?? 0) * (this.result()?.tamano ?? 4);
     return String(offset + index + 1).padStart(2, '0');

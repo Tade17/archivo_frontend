@@ -12,11 +12,6 @@ interface Columna {
   ayuda: string;
 }
 
-/**
- * Matriz física del archivo: Sección (hilera de andamios) → Nivel (piso, desde
- * el fondo hacia arriba) → Área (espacio dentro del nivel). Solo se registra lo
- * que existe físicamente; los documentos se ubican eligiendo de esta lista.
- */
 @Component({
   selector: 'app-ubicacion-admin',
   imports: [FormsModule],

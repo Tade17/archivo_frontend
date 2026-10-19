@@ -10,11 +10,6 @@ import { Contenedor, Page, RecordFile, TipoContenedor } from '../../../../core/m
 import { PagerComponent } from '../../../../shared/components/pager.component';
 import { UbicacionPickerComponent } from '../../../../shared/components/ubicacion-picker.component';
 
-/**
- * Un archivador o folder: sus documentos se registran uno por uno. Queda
- * Pendiente hasta que el usuario indica que ya subió todos; si aparece uno que
- * faltaba, se reabre.
- */
 @Component({
   selector: 'app-contenedor-detail',
   imports: [FormsModule, DatePipe, RouterLink, PagerComponent, UbicacionPickerComponent],

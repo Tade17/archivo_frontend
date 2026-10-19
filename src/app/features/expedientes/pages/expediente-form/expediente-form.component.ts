@@ -308,8 +308,7 @@ export class ExpedienteFormComponent implements OnInit {
   areaId = signal('');
   opciones = signal<Contenedor[]>([]);
   constructor() {
-    // Al elegir un Área se listan sus contenedores pendientes (los completados
-    // no admiten documentos nuevos hasta reabrirlos).
+    // Los contenedores completados no admiten documentos hasta reabrirlos.
     effect(() => {
       const area = this.areaId();
       this.opciones.set([]);
@@ -474,7 +473,6 @@ export class ExpedienteFormComponent implements OnInit {
       },
     });
   }
-  // Un documento nuevo vuelve a su contenedor para seguir con el siguiente.
   private finish(recordId: string) {
     this.busy.set(false);
     this.busyLabel.set('');

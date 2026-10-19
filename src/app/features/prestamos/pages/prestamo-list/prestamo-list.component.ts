@@ -16,11 +16,6 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
   GRIS: '#667482',
 };
 
-/**
- * Préstamos físicos a entidades externas (Fiscalía, Contraloría…). Se presta un
- * documento o un archivador/folder completo. El semáforo avisa lo que venció y
- * no volvió: es información sensible, por eso solo la ve el personal del archivo.
- */
 @Component({
   selector: 'app-prestamo-list',
   imports: [FormsModule, DatePipe, RouterLink, PagerComponent, RecordPickerComponent],

@@ -3,10 +3,6 @@ import { ArchiveApi } from '../../core/services/archive-api.service';
 import { DialogService } from '../../core/services/dialog.service';
 import { Ubicaciones } from '../../core/models/archive.model';
 
-/**
- * Selects en cascada Sección → Nivel → Área. Solo permite elegir ubicaciones que
- * ya existen: se administran aparte (pantalla de Ubicaciones, solo administrador).
- */
 @Component({
   selector: 'app-ubicacion-picker',
   template: `
@@ -74,7 +70,6 @@ export class UbicacionPickerComponent {
       next: (u) => this.data.set(u),
       error: (e) => this.dialog.error(e),
     });
-    // Si llega un área ya elegida (edición), se reconstruye su Sección y Nivel.
     effect(() => {
       const data = this.data();
       const area = data?.areas.find((a) => a.id === this.areaId());

@@ -48,7 +48,6 @@ export interface RecordFile {
 }
 export type TipoContenedor = 'ARCHIVADOR' | 'FOLDER';
 export type EstadoContenedor = 'PENDIENTE' | 'COMPLETADO';
-/** Archivador o folder físico guardado en un Área (Sección → Nivel → Área). */
 export interface Prestamo {
   id: string;
   objeto: 'DOCUMENTO' | 'CONTENEDOR';
@@ -93,7 +92,6 @@ export interface UbicacionItem {
   id: string;
   codigo: string;
 }
-/** Matriz física del archivo: Sección (estante) → Nivel → Área (caja). */
 export interface Ubicaciones {
   archivoCentral: { id?: string; nombre?: string };
   secciones: UbicacionItem[];

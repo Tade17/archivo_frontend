@@ -1,6 +1,4 @@
-# Frontend (Angular) para despliegue con docker-compose.prod.yml.
 # Etapa 1: compila. Etapa 2: nginx sirve los estáticos y reenvía /api al backend.
-# El caché de npm se conserva entre intentos si la conexión se corta.
 FROM node:24-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./

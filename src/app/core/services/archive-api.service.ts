@@ -103,7 +103,6 @@ export class ArchiveApi {
   deleteCatalog(path: string, id: string) {
     return this.http.delete(this.base + '/' + path + '/' + id);
   }
-  /** Solo el administrador: corrige un registro hecho por error. Queda en Actividad. */
   deleteRecord(id: string) {
     return this.http.delete(this.base + '/expedientes/' + id);
   }
@@ -127,7 +126,6 @@ export class ArchiveApi {
   ubicaciones() {
     return this.http.get<Ubicaciones>(this.base + '/workspace/ubicaciones');
   }
-  /** Alta/edición/baja de la matriz física; solo el administrador. */
   saveUbicacion(tipo: UbicacionTipo, id: string | null, body: unknown) {
     const url = this.base + '/' + UBICACION_PATH[tipo];
     return id ? this.http.put(url + '/' + id, body) : this.http.post(url, body);

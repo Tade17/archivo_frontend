@@ -13,7 +13,6 @@ import { ArchiveApi } from '../../core/services/archive-api.service';
 import { DialogService } from '../../core/services/dialog.service';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 
-/** Fragmento de texto de una página tal como lo entrega pdf.js. */
 interface PdfTextItem {
   str: string;
   transform: number[];
@@ -21,7 +20,6 @@ interface PdfTextItem {
   height: number;
 }
 
-/** Parte de un fragmento de texto que forma parte de una coincidencia. */
 interface Segment {
   item: number;
   from: number;
@@ -31,11 +29,10 @@ interface Segment {
 export interface Match {
   page: number;
   segments: Segment[];
-  /** Fragmento de texto alrededor de la coincidencia, para mostrarlo en la lista. */
   snippet: string;
 }
 
-/** Texto de una página listo para buscar: plegado (sin tildes ni mayúsculas) y con su mapa de posiciones. */
+/** Texto plegado (sin tildes ni mayúsculas) con su mapa de posiciones. */
 interface PageText {
   items: PdfTextItem[];
   starts: number[];
@@ -43,7 +40,7 @@ interface PageText {
   folded: string;
 }
 
-/** Igual longitud que el original, para que las posiciones del texto plegado sirvan sobre el texto real. */
+/** Conserva la longitud para que las posiciones sirvan sobre el texto original. */
 const foldChar = (char: string): string =>
   (char.normalize('NFD')[0] ?? char).toLowerCase().charAt(0) || char;
 const fold = (text: string): string => text.split('').map(foldChar).join('');
@@ -181,8 +178,7 @@ export class DocumentPreviewComponent implements OnDestroy {
   private measure: CanvasRenderingContext2D | null = null;
 
   constructor() {
-    // open() lee otras señales (p. ej. imageUrl); sin untracked, cargar una imagen
-    // volvía a disparar este efecto y el documento se pedía en bucle.
+    // untracked: open() lee otras señales y sin esto el documento se pedía en bucle.
     effect(() => {
       const id = this.id();
       this.revision();
@@ -314,7 +310,6 @@ export class DocumentPreviewComponent implements OnDestroy {
     }
   }
 
-  /** Extensión en mayúsculas para la etiqueta del archivo (PDF, TIFF…). */
   extension(fileName: string): string {
     return (fileName.split('.').pop() ?? '').slice(0, 4).toUpperCase();
   }
@@ -338,7 +333,6 @@ export class DocumentPreviewComponent implements OnDestroy {
     this.query = value;
   }
 
-  /** Enter: busca; si ya hay resultados de esta misma búsqueda, avanza a la siguiente coincidencia. */
   submit() {
     if (this.searchDone() && this.lastQuery === this.query && this.matches().length) this.step(1);
     else void this.find();
@@ -356,7 +350,6 @@ export class DocumentPreviewComponent implements OnDestroy {
     void this.render();
   }
 
-  /** Centra en pantalla la coincidencia activa; el marcador invisible hace de ancla para el desplazamiento. */
   private scrollTo(canvas: HTMLCanvasElement, point: { x: number; y: number }) {
     const marker = this.marker()?.nativeElement;
     if (!marker) return;
@@ -404,7 +397,6 @@ export class DocumentPreviewComponent implements OnDestroy {
     }
   }
 
-  /** Texto de la página unido en una sola cadena; se une con espacio solo donde el PDF separa palabras. */
   private async pageText(n: number): Promise<PageText> {
     const cached = this.pageTexts.get(n);
     if (cached) return cached;
@@ -446,7 +438,6 @@ export class DocumentPreviewComponent implements OnDestroy {
     return segments;
   }
 
-  /** Qué fracción del ancho de un fragmento ocupa su texto hasta la posición dada (fuentes proporcionales). */
   private ratio(text: string, index: number): number {
     if (!text.length) return 0;
     const ctx = (this.measure ??= document.createElement('canvas').getContext('2d')!);

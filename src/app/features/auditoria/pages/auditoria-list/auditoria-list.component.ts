@@ -168,7 +168,6 @@ export class AuditoriaListComponent implements OnInit {
   actionColor(action: string): string {
     return this.actionStyles[action]?.color ?? '#667482';
   }
-  /** Cifras de dos dígitos como en el diseño (03, 00, 12). */
   count(key: string): string {
     return String(this.summary()[key] ?? 0).padStart(2, '0');
   }

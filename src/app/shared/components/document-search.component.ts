@@ -2,7 +2,6 @@ import { Component, computed, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import type { DocumentPreviewComponent } from './document-preview.component';
 
-/** Panel "Buscar dentro del documento": maneja la búsqueda de un visor y lista sus coincidencias. */
 @Component({
   selector: 'app-document-search',
   imports: [FormsModule],
