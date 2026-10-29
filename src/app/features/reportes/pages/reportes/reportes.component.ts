@@ -7,10 +7,12 @@ import { DialogService } from '../../../../core/services/dialog.service';
 import {
   Catalogs,
   ColumnaReporte,
+  User,
   ReporteDefinicion,
   ReporteResultado,
 } from '../../../../core/models/archive.model';
 import { saveBlob } from '../../../../shared/utils/save-blob';
+import { PagerComponent } from '../../../../shared/components/pager.component';
 
 const FILTROS_INICIALES = {
   desde: '',
@@ -23,7 +25,9 @@ const FILTROS_INICIALES = {
   texto: '',
   soloVacias: false,
   estadoUsuario: 'TODOS',
+  accion: 'TODAS',
   dias: '30',
+  usuarioId: '',
 };
 type Filtros = typeof FILTROS_INICIALES;
 
@@ -31,7 +35,7 @@ const NUMERICOS: ColumnaReporte['tipo'][] = ['numero', 'promedio', 'porcentaje']
 
 @Component({
   selector: 'app-reportes',
-  imports: [FormsModule, DatePipe],
+  imports: [FormsModule, DatePipe, PagerComponent],
   template: `
     <div class="page-heading no-print">
       <div>
@@ -70,19 +74,29 @@ const NUMERICOS: ColumnaReporte['tipo'][] = ['numero', 'promedio', 'porcentaje']
               @if (usa('desde')) {
                 <label class="min-w-[150px]"
                   >Desde
-                  <input type="date" name="desde" [(ngModel)]="f.desde" />
+                  <input
+                    type="date"
+                    name="desde"
+                    [(ngModel)]="f.desde"
+                    (ngModelChange)="alCambiar()"
+                  />
                 </label>
               }
               @if (usa('hasta')) {
                 <label class="min-w-[150px]"
                   >Hasta
-                  <input type="date" name="hasta" [(ngModel)]="f.hasta" />
+                  <input
+                    type="date"
+                    name="hasta"
+                    [(ngModel)]="f.hasta"
+                    (ngModelChange)="alCambiar()"
+                  />
                 </label>
               }
               @if (usa('fecha')) {
                 <label class="min-w-[200px]"
                   >Fecha a considerar
-                  <select name="fecha" [(ngModel)]="f.fecha">
+                  <select name="fecha" [(ngModel)]="f.fecha" (ngModelChange)="alCambiar()">
                     <option value="REGISTRO">Registro en el sistema</option>
                     <option value="DOCUMENTO">Fecha del documento</option>
                   </select>
@@ -91,7 +105,7 @@ const NUMERICOS: ColumnaReporte['tipo'][] = ['numero', 'promedio', 'porcentaje']
               @if (usa('agrupar')) {
                 <label class="min-w-[130px]"
                   >Agrupar por
-                  <select name="agrupar" [(ngModel)]="f.agrupar">
+                  <select name="agrupar" [(ngModel)]="f.agrupar" (ngModelChange)="alCambiar()">
                     <option value="DIA">Día</option>
                     <option value="MES">Mes</option>
                     <option value="ANIO">Año</option>
@@ -101,7 +115,7 @@ const NUMERICOS: ColumnaReporte['tipo'][] = ['numero', 'promedio', 'porcentaje']
               @if (usa('areaId')) {
                 <label class="min-w-[200px]"
                   >Área de destino
-                  <select name="areaId" [(ngModel)]="f.areaId">
+                  <select name="areaId" [(ngModel)]="f.areaId" (ngModelChange)="alCambiar()">
                     <option value="">Todas</option>
                     @for (a of catalogos()?.areas; track a.id) {
                       <option [value]="a.id">{{ a.nombre }}</option>
@@ -112,7 +126,7 @@ const NUMERICOS: ColumnaReporte['tipo'][] = ['numero', 'promedio', 'porcentaje']
               @if (usa('tipoId')) {
                 <label class="min-w-[180px]"
                   >Tipo documental
-                  <select name="tipoId" [(ngModel)]="f.tipoId">
+                  <select name="tipoId" [(ngModel)]="f.tipoId" (ngModelChange)="alCambiar()">
                     <option value="">Todos</option>
                     @for (t of catalogos()?.tipos; track t.id) {
                       <option [value]="t.id">{{ t.nombre }}</option>
@@ -123,17 +137,49 @@ const NUMERICOS: ColumnaReporte['tipo'][] = ['numero', 'promedio', 'porcentaje']
               @if (usa('estadoContenedor')) {
                 <label class="min-w-[150px]"
                   >Estado
-                  <select name="estadoContenedor" [(ngModel)]="f.estadoContenedor">
+                  <select
+                    name="estadoContenedor"
+                    [(ngModel)]="f.estadoContenedor"
+                    (ngModelChange)="alCambiar()"
+                  >
                     <option value="TODOS">Todos</option>
                     <option value="PENDIENTE">Pendientes</option>
                     <option value="COMPLETADO">Completados</option>
                   </select>
                 </label>
               }
+              @if (usa('usuarioId')) {
+                <label class="min-w-[220px]"
+                  >Usuario
+                  <select name="usuarioId" [(ngModel)]="f.usuarioId" (ngModelChange)="alCambiar()">
+                    <option value="">Todos</option>
+                    @for (u of usuarios(); track u.id) {
+                      <option [value]="u.id">{{ u.nombre }}</option>
+                    }
+                  </select>
+                </label>
+              }
+              @if (usa('accion')) {
+                <label class="min-w-[170px]"
+                  >Acción
+                  <select name="accion" [(ngModel)]="f.accion" (ngModelChange)="alCambiar()">
+                    <option value="TODAS">Todas</option>
+                    <option value="CREAR">Creó</option>
+                    <option value="MODIFICAR">Modificó</option>
+                    <option value="CONSULTAR">Consultó</option>
+                    <option value="DESCARGAR">Descargó</option>
+                    <option value="ELIMINAR">Eliminó</option>
+                  </select>
+                </label>
+              }
               @if (usa('estadoUsuario')) {
                 <label class="min-w-[170px]"
                   >Cuentas
-                  <select name="estadoUsuario" [(ngModel)]="f.estadoUsuario">
+                  <select
+                    name="estadoUsuario"
+                    [(ngModel)]="f.estadoUsuario"
+                    (ngModelChange)="alCambiar()"
+                  >
                     <option value="TODOS">Todas</option>
                     <option value="ACTIVOS">Activas</option>
                     <option value="SUSPENDIDOS">Suspendidas</option>
@@ -155,7 +201,12 @@ const NUMERICOS: ColumnaReporte['tipo'][] = ['numero', 'promedio', 'porcentaje']
               }
               @if (usa('soloVacias')) {
                 <label class="!flex !flex-row !items-center !gap-2 whitespace-nowrap"
-                  ><input type="checkbox" name="soloVacias" [(ngModel)]="f.soloVacias" />
+                  ><input
+                    type="checkbox"
+                    name="soloVacias"
+                    [(ngModel)]="f.soloVacias"
+                    (ngModelChange)="alCambiar()"
+                  />
                   Solo ubicaciones vacías
                 </label>
               }
@@ -190,12 +241,26 @@ const NUMERICOS: ColumnaReporte['tipo'][] = ['numero', 'promedio', 'porcentaje']
                 @if (resumenFiltros()) {
                   · {{ resumenFiltros() }}
                 }
+                @if (sinAplicar()) {
+                  <span style="color: #b7791f">
+                    · Cambiaste un filtro: presiona «Generar reporte» para actualizar antes de
+                    descargar.</span
+                  >
+                }
               </p>
               <div class="flex gap-3">
-                <button class="btn secondary" [disabled]="!res.filas.length" (click)="exportar()">
+                <button
+                  class="btn secondary"
+                  [disabled]="!res.filas.length || sinAplicar() || cargando()"
+                  (click)="exportar()"
+                >
                   Descargar Excel (CSV) ↓
                 </button>
-                <button class="btn secondary" [disabled]="!res.filas.length" (click)="imprimir()">
+                <button
+                  class="btn secondary"
+                  [disabled]="!res.filas.length || sinAplicar() || cargando()"
+                  (click)="imprimir()"
+                >
                   Imprimir / PDF
                 </button>
               </div>
@@ -215,11 +280,23 @@ const NUMERICOS: ColumnaReporte['tipo'][] = ['numero', 'promedio', 'porcentaje']
                   </tr>
                 </thead>
                 <tbody>
-                  @for (fila of res.filas; track $index) {
+                  @for (fila of filasVisibles(); track $index) {
                     <tr>
                       @for (c of res.columnas; track c.clave) {
                         <td class="text-xs" [class.text-right]="numerica(c)">
-                          {{ fmt(c, fila[c.clave]) }}
+                          @if (res.codigo === 'actividad-usuario' && c.clave === 'usuario') {
+                            <a
+                              role="button"
+                              tabindex="0"
+                              class="font-semibold underline cursor-pointer text-[var(--brand)]"
+                              title="Ver todo lo que hizo esta persona"
+                              (click)="verDetalle(fila)"
+                              (keydown.enter)="verDetalle(fila)"
+                              >{{ fmt(c, fila[c.clave]) }}</a
+                            >
+                          } @else {
+                            {{ fmt(c, fila[c.clave]) }}
+                          }
                         </td>
                       }
                     </tr>
@@ -246,6 +323,15 @@ const NUMERICOS: ColumnaReporte['tipo'][] = ['numero', 'promedio', 'porcentaje']
                 </tbody>
               </table>
             </div>
+            @if (res.filas.length > tamano) {
+              <app-pager
+                class="no-print"
+                [page]="pagina()"
+                [size]="tamano"
+                [total]="res.filas.length"
+                (changed)="pagina.set($event)"
+              />
+            }
           </div>
         } @else if (!cargando()) {
           <div class="panel">
@@ -263,9 +349,20 @@ export class ReportesComponent implements OnInit {
 
   reportes = signal<ReporteDefinicion[]>([]);
   catalogos = signal<Catalogs | null>(null);
+  usuarios = signal<User[]>([]);
   actual = signal<ReporteDefinicion | null>(null);
   resultado = signal<ReporteResultado | null>(null);
   cargando = signal(false);
+  /** Filas por página en pantalla. El Excel y la impresión siempre llevan todas. */
+  readonly tamano = 20;
+  pagina = signal(0);
+  imprimiendo = signal(false);
+  filasVisibles = computed(() => {
+    const filas = this.resultado()?.filas ?? [];
+    return this.imprimiendo()
+      ? filas
+      : filas.slice(this.pagina() * this.tamano, (this.pagina() + 1) * this.tamano);
+  });
   f: Filtros = { ...FILTROS_INICIALES };
   ahora = new Date();
 
@@ -279,7 +376,16 @@ export class ReportesComponent implements OnInit {
 
   ngOnInit() {
     this.api.reportes().subscribe({
-      next: (r) => this.reportes.set(r),
+      next: (r) => {
+        this.reportes.set(r);
+        // Solo el Administrador ve reportes con filtro por usuario: ahí se necesita la lista de personas.
+        if (r.some((x) => x.filtros.includes('usuarioId'))) {
+          this.api.usersAll().subscribe({
+            next: (p) => this.usuarios.set(p.contenido),
+            error: (e) => this.dialog.error(e),
+          });
+        }
+      },
       error: (e) => this.dialog.error(e),
     });
     this.api.catalogs().subscribe({
@@ -295,11 +401,26 @@ export class ReportesComponent implements OnInit {
   placeholderTexto() {
     const codigo = this.actual()?.codigo ?? '';
     if (codigo === 'eliminaciones') return 'Usuario o nombre de lo eliminado…';
+    if (codigo === 'detalle-actividad') return 'Usuario, o nombre de lo que tocó…';
     if (['actividad-usuario', 'descargas-consultas', 'usuarios-estado'].includes(codigo))
       return 'Nombre o correo del usuario…';
     return codigo.startsWith('prestamos')
       ? 'Entidad, documento o archivador…'
       : 'Descripción del archivador…';
+  }
+
+  /** Desde el resumen "Actividad por usuario": abre el detalle de esa persona con el mismo periodo. */
+  verDetalle(fila: Record<string, string | number | null>) {
+    const detalle = this.reportes().find((r) => r.codigo === 'detalle-actividad');
+    if (!detalle) return;
+    this.actual.set(detalle);
+    this.f = {
+      ...FILTROS_INICIALES,
+      desde: this.f.desde,
+      hasta: this.f.hasta,
+      usuarioId: String(fila['usuario_id'] ?? ''),
+    };
+    this.generar();
   }
 
   elegir(r: ReporteDefinicion) {
@@ -308,9 +429,25 @@ export class ReportesComponent implements OnInit {
     this.generar();
   }
 
+  /** Huella de los filtros que usa el reporte elegido (para saber si el resultado en pantalla sigue vigente). */
+  private huella() {
+    const r = this.actual();
+    return r ? JSON.stringify(r.filtros.map((k) => this.f[k as keyof Filtros])) : '';
+  }
+  private aplicados = '';
+  /** Hay filtros cambiados que todavía no se aplicaron al resultado que se ve. */
+  sinAplicar() {
+    return this.huella() !== this.aplicados;
+  }
+  /** Lista, fecha o casilla: se aplica al elegir (el texto y los días esperan al botón o a Intro). */
+  alCambiar() {
+    setTimeout(() => this.generar()); // espera a que el valor elegido llegue a `f`
+  }
+
   generar() {
     const r = this.actual();
     if (!r) return;
+    this.aplicados = this.huella();
     this.cargando.set(true);
     const filtros: Record<string, unknown> = {};
     for (const k of r.filtros) {
@@ -320,6 +457,7 @@ export class ReportesComponent implements OnInit {
     this.api.reporte(r.codigo, filtros).subscribe({
       next: (res) => {
         this.resultado.set(res);
+        this.pagina.set(0);
         this.ahora = new Date();
         this.cargando.set(false);
       },
@@ -394,13 +532,29 @@ export class ReportesComponent implements OnInit {
       );
     if (this.usa('dias') && this.f.dias)
       partes.push('Umbral: ' + this.f.dias + ' días sin actividad');
+    const persona = this.usuarios().find((u) => u.id === this.f.usuarioId);
+    if (this.usa('usuarioId') && persona) partes.push('Usuario: ' + persona.nombre);
+    if (this.usa('accion') && this.f.accion !== 'TODAS')
+      partes.push(
+        (
+          {
+            CREAR: 'Solo creaciones',
+            MODIFICAR: 'Solo modificaciones',
+            CONSULTAR: 'Solo consultas',
+            DESCARGAR: 'Solo descargas',
+            ELIMINAR: 'Solo eliminaciones',
+          } as Record<string, string>
+        )[this.f.accion],
+      );
     if (this.usa('texto') && this.f.texto) partes.push('Búsqueda: «' + this.f.texto + '»');
     if (this.usa('soloVacias') && this.f.soloVacias) partes.push('Solo ubicaciones vacías');
     return partes.join(' · ');
   }
 
   imprimir() {
-    window.print();
+    this.imprimiendo.set(true); // se imprimen todas las filas, no solo la página visible
+    window.addEventListener('afterprint', () => this.imprimiendo.set(false), { once: true });
+    setTimeout(() => window.print(), 100); // da tiempo a dibujar la tabla completa
   }
 
   exportar() {

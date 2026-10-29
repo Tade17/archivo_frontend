@@ -77,6 +77,10 @@ export class ArchiveApi {
       responseType: 'blob',
     });
   }
+  /** Todas las cuentas (para elegir una persona en un filtro). */
+  usersAll() {
+    return this.http.get<Page<User>>(this.base + '/usuarios', { params: { page: 0, size: 200 } });
+  }
   users(page = 0) {
     return this.http.get<Page<User>>(this.base + '/usuarios', { params: { page, size: 10 } });
   }
@@ -151,7 +155,10 @@ export class ArchiveApi {
   contenedor(id: string) {
     return this.http.get<Contenedor>(this.base + '/workspace/contenedores/' + id);
   }
-  saveContenedor(id: string | null, body: { cajaId: string; tipo: TipoContenedor; descripcion: string }) {
+  saveContenedor(
+    id: string | null,
+    body: { cajaId: string; tipo: TipoContenedor; descripcion: string },
+  ) {
     const url = this.base + '/workspace/contenedores';
     return id
       ? this.http.put<{ id: string }>(url + '/' + id, body)
