@@ -1,10 +1,13 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ArchiveApi } from '../../../../core/services/archive-api.service';
 import { DialogService } from '../../../../core/services/dialog.service';
 import { AlertasService } from '../../../../core/services/alertas.service';
+import { AuthService } from '../../../../core/services/auth.service';
+import { descargarCsv } from '../../../../shared/utils/export-csv';
 import { Contenedor, Page, Prestamo, RecordFile } from '../../../../core/models/archive.model';
 import { PagerComponent } from '../../../../shared/components/pager.component';
 import { RecordPickerComponent } from '../../../../shared/components/record-picker.component';
@@ -20,7 +23,7 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
   selector: 'app-prestamo-list',
   imports: [FormsModule, DatePipe, RouterLink, PagerComponent, RecordPickerComponent],
   template: `
-    <div class="page-heading">
+    <div class="page-heading no-print">
       <div>
         <h1>Préstamos <strong>del archivo</strong></h1>
         <p>Controla qué documentos o archivadores salieron, a quién y cuándo deben volver.</p>
@@ -31,7 +34,7 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
     </div>
     <div class="workspace space-y-6">
       @if (alertas.resumen(); as r) {
-        <div class="grid sm:grid-cols-3 gap-4">
+        <div class="grid sm:grid-cols-3 gap-4 no-print">
           <div class="panel !py-4">
             <p class="eyebrow">SIN DEVOLVER</p>
             <p class="text-2xl font-extrabold text-[var(--deep)] mt-1">{{ r.sinDevolver }}</p>
@@ -48,7 +51,7 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
       }
 
       @if (creando()) {
-        <form #f="ngForm" class="panel" (ngSubmit)="guardar()">
+        <form #f="ngForm" class="panel no-print" (ngSubmit)="guardar()">
           <p class="eyebrow">NUEVO PRÉSTAMO</p>
           <h2 class="mt-1 mb-5">¿Qué se presta y a quién?</h2>
           <div class="flex flex-wrap gap-6 mb-5 text-sm">
@@ -74,20 +77,26 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
 
           @if (objeto() === 'DOCUMENTO') {
             @if (documento(); as d) {
-              <div class="rounded-[6px] border border-[var(--line)] bg-[var(--soft)] px-4 py-3 mb-5 flex justify-between gap-3">
+              <div
+                class="rounded-[6px] border border-[var(--line)] bg-[var(--soft)] px-4 py-3 mb-5 flex justify-between gap-3"
+              >
                 <div class="min-w-0">
                   <strong class="text-[var(--deep)]">{{ d.codigoUnico }}</strong>
                   <p class="text-xs mt-1">{{ d.asunto }}</p>
                   <p class="text-[10px] text-[var(--muted)] mt-1">{{ d.contenedorDescripcion }}</p>
                 </div>
-                <button type="button" class="text-button shrink-0" (click)="documento.set(null)">Cambiar</button>
+                <button type="button" class="text-button shrink-0" (click)="documento.set(null)">
+                  Cambiar
+                </button>
               </div>
             } @else {
               <div class="mb-5"><app-record-picker (chosen)="documento.set($event)" /></div>
             }
           } @else {
             @if (contenedor(); as c) {
-              <div class="rounded-[6px] border border-[var(--line)] bg-[var(--soft)] px-4 py-3 mb-5 flex justify-between gap-3">
+              <div
+                class="rounded-[6px] border border-[var(--line)] bg-[var(--soft)] px-4 py-3 mb-5 flex justify-between gap-3"
+              >
                 <div class="min-w-0">
                   <strong class="text-[var(--deep)]">{{ c.descripcion }}</strong>
                   <p class="text-xs mt-1">
@@ -95,7 +104,9 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
                     {{ c.totalDocumentos }} documento(s)
                   </p>
                 </div>
-                <button type="button" class="text-button shrink-0" (click)="contenedor.set(null)">Cambiar</button>
+                <button type="button" class="text-button shrink-0" (click)="contenedor.set(null)">
+                  Cambiar
+                </button>
               </div>
             } @else {
               <div class="mb-5">
@@ -106,7 +117,9 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
                     [(ngModel)]="textoContenedor"
                     (keydown.enter)="$event.preventDefault(); buscarContenedores()"
                   />
-                  <button type="button" class="btn secondary" (click)="buscarContenedores()">Localizar</button>
+                  <button type="button" class="btn secondary" (click)="buscarContenedores()">
+                    Localizar
+                  </button>
                 </div>
                 @if (opciones(); as lista) {
                   <div class="mt-3 border border-[var(--line)] rounded-[8px] overflow-hidden">
@@ -116,7 +129,9 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
                         class="block text-left w-full px-4 py-3 border-b border-[var(--line)] last:border-b-0 hover:bg-[var(--soft)]"
                         (click)="contenedor.set(c); opciones.set(null)"
                       >
-                        <strong class="block text-xs text-[var(--deep)]">{{ c.descripcion }}</strong>
+                        <strong class="block text-xs text-[var(--deep)]">{{
+                          c.descripcion
+                        }}</strong>
                         <span class="block text-[10px] text-[var(--muted)] mt-1"
                           >Sección {{ c.seccion }} · Nivel {{ c.nivel }} · Área {{ c.area }} ·
                           {{ c.totalDocumentos }} documento(s)</span
@@ -153,12 +168,14 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
           </label>
           <div class="flex justify-end gap-3 mt-5">
             <button type="button" class="btn secondary" (click)="cerrarForm()">Cancelar</button>
-            <button class="btn" [disabled]="!f.valid || !tieneObjeto() || busy()">Registrar préstamo</button>
+            <button class="btn" [disabled]="!f.valid || !tieneObjeto() || busy()">
+              Registrar préstamo
+            </button>
           </div>
         </form>
       }
 
-      <section class="panel">
+      <section class="panel no-print">
         <div class="flex flex-wrap items-end gap-4 mb-4">
           <label class="min-w-[180px]"
             >Mostrar
@@ -178,6 +195,24 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
             />
             <button class="btn secondary">Buscar</button>
           </form>
+          <div class="flex gap-3">
+            <button
+              type="button"
+              class="btn secondary"
+              [disabled]="exportando() || !data()?.totalElementos"
+              (click)="exportarExcel()"
+            >
+              Descargar Excel (CSV) ↓
+            </button>
+            <button
+              type="button"
+              class="btn secondary"
+              [disabled]="exportando() || !data()?.totalElementos"
+              (click)="imprimirPdf()"
+            >
+              Imprimir / PDF
+            </button>
+          </div>
         </div>
         <div class="overflow-x-auto">
           <table>
@@ -195,7 +230,10 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
               @for (p of data()?.contenido; track p.id) {
                 <tr>
                   <td>
-                    <span class="inline-flex items-center gap-2 text-xs font-semibold" [style.color]="color(p)">
+                    <span
+                      class="inline-flex items-center gap-2 text-xs font-semibold"
+                      [style.color]="color(p)"
+                    >
                       <span class="w-2.5 h-2.5 rounded-full" [style.background]="color(p)"></span>
                       {{ etiqueta(p) }}
                     </span>
@@ -251,6 +289,51 @@ const SEMAFORO_COLOR: Record<Prestamo['semaforo'], string> = {
           (changed)="cargar($event)"
         />
       </section>
+
+      @if (filasImpresion(); as filas) {
+        <div class="hidden print-label">
+          <div class="flex items-center gap-4 mb-3">
+            <img src="/design/kSOoW.png" alt="Escudo" width="46" height="50" />
+            <div>
+              <p class="eyebrow">MUNICIPALIDAD DISTRITAL DE SAN JOSÉ · ARCHIVO MUNICIPAL</p>
+              <h2 class="mt-1">Préstamos del archivo</h2>
+            </div>
+          </div>
+          <p class="text-xs mb-3">
+            Generado el {{ ahora | date: 'dd/MM/yyyy HH:mm' }} por {{ auth.usuario()?.nombre }} ·
+            {{ resumenFiltro() }} · {{ filas.length }} préstamo(s)
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>ESTADO</th>
+                <th>QUÉ SE PRESTÓ</th>
+                <th>A QUIÉN</th>
+                <th>SALIÓ</th>
+                <th>DEBE VOLVER / DEVUELTO</th>
+                <th>REGISTRÓ</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of filas; track p.id) {
+                <tr>
+                  <td class="text-xs">{{ etiqueta(p) }}</td>
+                  <td class="text-xs">
+                    {{ queSePresto(p) }}
+                    @if (p.observaciones) {
+                      <span class="block italic">{{ p.observaciones }}</span>
+                    }
+                  </td>
+                  <td class="text-xs">{{ p.solicitante }}</td>
+                  <td class="text-xs">{{ fecha(p.fechaSolicitud) }}</td>
+                  <td class="text-xs">{{ fechaCierre(p) }}</td>
+                  <td class="text-xs">{{ p.registradoPor }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     </div>
   `,
 })
@@ -258,6 +341,7 @@ export class PrestamoListComponent implements OnInit {
   api = inject(ArchiveApi);
   dialog = inject(DialogService);
   alertas = inject(AlertasService);
+  auth = inject(AuthService);
   route = inject(ActivatedRoute);
   router = inject(Router);
 
@@ -265,6 +349,10 @@ export class PrestamoListComponent implements OnInit {
   estado = signal<'ACTIVOS' | 'VENCIDOS' | 'DEVUELTOS' | 'TODOS'>('ACTIVOS');
   texto = '';
   busy = signal(false);
+  exportando = signal(false);
+  filasImpresion = signal<Prestamo[] | null>(null);
+  ahora = new Date();
+  private fechas = new DatePipe('en-US');
 
   creando = signal(false);
   objeto = signal<'DOCUMENTO' | 'CONTENEDOR'>('DOCUMENTO');
@@ -342,6 +430,94 @@ export class PrestamoListComponent implements OnInit {
     this.estado.set(estado);
     this.cargar(0);
   }
+  /** Todos los préstamos del filtro actual (la lista en pantalla solo muestra una página). */
+  private async todos(): Promise<Prestamo[]> {
+    const filas: Prestamo[] = [];
+    let pagina = 0;
+    while (true) {
+      const p = await firstValueFrom(
+        this.api.prestamos({ estado: this.estado(), texto: this.texto }, pagina, 100),
+      );
+      filas.push(...p.contenido);
+      if (++pagina >= p.totalPaginas) break;
+    }
+    return filas;
+  }
+  fecha(iso: string | null) {
+    return iso ? (this.fechas.transform(iso, 'dd/MM/yyyy') ?? '') : '';
+  }
+  queSePresto(p: Prestamo) {
+    return p.objeto === 'DOCUMENTO'
+      ? `${p.expedienteCodigo} · ${p.expedienteAsunto}`
+      : `${p.contenedorDescripcion} (archivador / folder completo)`;
+  }
+  fechaCierre(p: Prestamo) {
+    return p.estado === 'DEVUELTO'
+      ? 'Devuelto el ' + this.fecha(p.fechaDevolucionReal)
+      : this.fecha(p.fechaDevolucionPrevista);
+  }
+  /** Filtro aplicado, en texto, para el encabezado del reporte. */
+  resumenFiltro() {
+    const estados = {
+      ACTIVOS: 'Sin devolver',
+      VENCIDOS: 'Vencidos',
+      DEVUELTOS: 'Devueltos',
+      TODOS: 'Todos',
+    };
+    return (
+      'Mostrar: ' + estados[this.estado()] + (this.texto ? ' · Búsqueda: «' + this.texto + '»' : '')
+    );
+  }
+  async exportarExcel() {
+    this.exportando.set(true);
+    try {
+      const filas = await this.todos();
+      const dia = this.fechas.transform(new Date(), 'yyyyMMdd');
+      descargarCsv(
+        `prestamos-${this.estado().toLowerCase()}-${dia}.csv`,
+        [
+          'Estado',
+          'Qué se prestó',
+          'Tipo',
+          'A quién',
+          'Salió',
+          'Debe volver',
+          'Devuelto el',
+          'Registró',
+          'Observaciones',
+        ],
+        filas.map((p) => [
+          this.etiqueta(p),
+          this.queSePresto(p),
+          p.objeto === 'DOCUMENTO' ? 'Documento' : 'Archivador o folder completo',
+          p.solicitante,
+          this.fecha(p.fechaSolicitud),
+          this.fecha(p.fechaDevolucionPrevista),
+          this.fecha(p.fechaDevolucionReal),
+          p.registradoPor,
+          p.observaciones ?? '',
+        ]),
+      );
+    } catch (e) {
+      this.dialog.error(e);
+    } finally {
+      this.exportando.set(false);
+    }
+  }
+  /** Abre la impresión del navegador (elegir «Guardar como PDF») con todos los préstamos del filtro. */
+  async imprimirPdf() {
+    this.exportando.set(true);
+    try {
+      this.filasImpresion.set(await this.todos());
+      this.ahora = new Date();
+      window.addEventListener('afterprint', () => this.filasImpresion.set(null), { once: true });
+      setTimeout(() => window.print(), 100); // da tiempo a dibujar la tabla de impresión
+    } catch (e) {
+      this.dialog.error(e);
+    } finally {
+      this.exportando.set(false);
+    }
+  }
   cargar(page: number) {
     this.api.prestamos({ estado: this.estado(), texto: this.texto }, page).subscribe({
       next: (p) => this.data.set(p),
@@ -351,11 +527,19 @@ export class PrestamoListComponent implements OnInit {
   async guardar() {
     if (!this.tieneObjeto() || this.busy()) return;
     const destino =
-      this.objeto() === 'DOCUMENTO' ? this.documento()!.codigoUnico : this.contenedor()!.descripcion;
+      this.objeto() === 'DOCUMENTO'
+        ? this.documento()!.codigoUnico
+        : this.contenedor()!.descripcion;
     if (
       !(await this.dialog.ask(
         'Registrar préstamo',
-        'Se prestará «' + destino + '» a ' + this.form.solicitante.trim() + ' por ' + this.form.dias + ' día(s).',
+        'Se prestará «' +
+          destino +
+          '» a ' +
+          this.form.solicitante.trim() +
+          ' por ' +
+          this.form.dias +
+          ' día(s).',
       ))
     )
       return;
@@ -384,7 +568,10 @@ export class PrestamoListComponent implements OnInit {
   async devolver(p: Prestamo) {
     const que = p.objeto === 'DOCUMENTO' ? p.expedienteCodigo : p.contenedorDescripcion;
     if (
-      !(await this.dialog.ask('Registrar devolución', '«' + que + '» fue devuelto por ' + p.solicitante + '.'))
+      !(await this.dialog.ask(
+        'Registrar devolución',
+        '«' + que + '» fue devuelto por ' + p.solicitante + '.',
+      ))
     )
       return;
     this.busy.set(true);
