@@ -25,3 +25,57 @@ describe('Document upload navigation', () => {
     ).toBe(true);
   });
 });
+
+describe('Menú por rol', () => {
+  function shellPara(rol: string) {
+    const auth = {
+      hasRole: (r: string) => rol === r,
+      can: (...permitidos: string[]) => rol === 'ADMIN' || permitidos.includes(rol),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: AuthService, useValue: auth },
+        { provide: DialogService, useValue: {} },
+        { provide: AlertasService, useValue: { refrescar: vi.fn() } },
+        { provide: Router, useValue: { events: EMPTY } },
+      ],
+    });
+    return TestBed.runInInjectionContext(() => new AppShellComponent());
+  }
+
+  it('el administrador usa el menú ☰ con las 7 opciones', () => {
+    const shell = shellPara('ADMIN');
+    expect(shell.usaHamburguesa()).toBe(true);
+    expect(shell.visibles().map((n) => n.label)).toEqual([
+      'Explorar',
+      'Archivadores y folders',
+      'Préstamos',
+      'Reportes',
+      'Ubicaciones',
+      'Actividad',
+      'Usuarios',
+    ]);
+  });
+
+  it('el gestor y el lector conservan la barra normal', () => {
+    const gestor = shellPara('GESTOR_DOCUMENTAL');
+    expect(gestor.usaHamburguesa()).toBe(false);
+    expect(gestor.visibles().map((n) => n.label)).toEqual([
+      'Explorar',
+      'Archivadores y folders',
+      'Préstamos',
+      'Reportes',
+    ]);
+    TestBed.resetTestingModule();
+    const lector = shellPara('LECTOR');
+    expect(lector.usaHamburguesa()).toBe(false);
+    expect(lector.visibles().map((n) => n.label)).toEqual(['Explorar']);
+  });
+
+  it('el menú se cierra con Escape', () => {
+    const shell = shellPara('ADMIN');
+    shell.menuAbierto.set(true);
+    shell.cerrarMenu();
+    expect(shell.menuAbierto()).toBe(false);
+  });
+});

@@ -13,6 +13,8 @@ import {
   Ubicaciones,
   Prestamo,
   ResumenPrestamos,
+  ReporteDefinicion,
+  ReporteResultado,
 } from '../models/archive.model';
 @Injectable({ providedIn: 'root' })
 export class ArchiveApi {
@@ -112,6 +114,14 @@ export class ArchiveApi {
   prestamos(filters: Record<string, unknown> = {}, page = 0, size = 20) {
     return this.http.get<Page<Prestamo>>(this.base + '/workspace/prestamos', {
       params: this.params({ ...filters, page, size }),
+    });
+  }
+  reportes() {
+    return this.http.get<ReporteDefinicion[]>(this.base + '/workspace/reportes');
+  }
+  reporte(codigo: string, filters: Record<string, unknown> = {}) {
+    return this.http.get<ReporteResultado>(this.base + '/workspace/reportes/' + codigo, {
+      params: this.params(filters),
     });
   }
   prestamosResumen() {

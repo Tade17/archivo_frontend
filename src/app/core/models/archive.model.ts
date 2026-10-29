@@ -155,3 +155,23 @@ export interface AuditEvent {
   accion: string;
   fecha: string;
 }
+export interface ReporteDefinicion {
+  codigo: string;
+  grupo: string;
+  titulo: string;
+  descripcion: string;
+  filtros: string[];
+}
+export interface ColumnaReporte {
+  clave: string;
+  etiqueta: string;
+  tipo: 'texto' | 'numero' | 'promedio' | 'porcentaje' | 'fecha' | 'fechahora';
+}
+export interface ReporteResultado {
+  codigo: string;
+  titulo: string;
+  columnas: ColumnaReporte[];
+  filas: Record<string, string | number | null>[];
+  totales: Record<string, number>;
+  truncado: boolean;
+}

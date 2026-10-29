@@ -84,6 +84,14 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'reportes',
+        canActivate: [roles('GESTOR_DOCUMENTAL')],
+        loadComponent: () =>
+          import('./features/reportes/pages/reportes/reportes.component').then(
+            (m) => m.ReportesComponent,
+          ),
+      },
+      {
         path: 'ubicaciones',
         canActivate: [roles()],
         loadComponent: () =>
